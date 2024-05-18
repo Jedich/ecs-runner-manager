@@ -19,6 +19,7 @@ func StartReconcileLoop(r Reconciler) {
 	if err != nil {
 		logs.Fatal(err)
 	}
+	logs.Info("Init successful")
 
 	reconcileErrors := make(chan error)
 	defer close(reconcileErrors)

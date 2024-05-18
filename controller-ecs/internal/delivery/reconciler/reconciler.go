@@ -3,6 +3,7 @@ package reconciler
 import (
 	"runner-controller-ecs/internal/delivery"
 	"runner-controller-ecs/internal/infrastructure/logs"
+	"runner-controller-ecs/internal/usecase/aws"
 )
 
 type Reconciler struct {
@@ -13,7 +14,12 @@ func NewReconciler() delivery.Reconciler {
 }
 
 func (r *Reconciler) Init() error {
-	logs.Info("Reconciler ready")
+	awsUC := aws.NewAWSUC()
+	_, err := awsUC.GetTaskEnvironment()
+	if err != nil {
+		return err
+	}
+	logs.Info("Init done")
 	return nil
 }
 

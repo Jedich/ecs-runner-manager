@@ -1,0 +1,12 @@
+services:
+  runner:
+    image: test-go-runner
+    ports:
+      - "2112:2112"
+    environment:
+      - GITHUB_ACTIONS_RUNNER_CONTEXT="https://github.com/Jedich/go-test-app"
+      - GITHUB_ACCESS_TOKEN="$2"
+      - RUNNER_NAME="linux-asdasd"
+      - RUNNER_WORKDIR="/tmp/github-runner-go-test-app"
+      - LABELS="cicd-runner"
+      - EPHEMERAL=1

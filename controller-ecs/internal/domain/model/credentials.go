@@ -1,5 +1,10 @@
 package model
 
 type Credentials struct {
-	Username string `json:"username"`
+	Owner              string
+	Repo               string
+	GithubPAT          string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	AWSRegion          string
 }

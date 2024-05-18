@@ -4,13 +4,10 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"os"
-	"time"
 )
 
 func NewLogger() {
-	consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout, NoColor: true, TimeFormat: time.RFC3339}
-
-	log.Logger = zerolog.New(consoleWriter).With().Timestamp().Logger().Level(zerolog.TraceLevel)
+	log.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger().Level(zerolog.TraceLevel)
 }
 
 func Info(msg string) {
@@ -22,7 +19,7 @@ func InfoF(format string, args ...interface{}) {
 }
 
 func Error(err error) {
-	log.Error().Err(err)
+	log.Error().Err(err).Send()
 }
 
 func ErrorF(format string, args ...interface{}) {
@@ -30,5 +27,5 @@ func ErrorF(format string, args ...interface{}) {
 }
 
 func Fatal(err error) {
-	log.Fatal().Err(err)
+	log.Fatal().Err(err).Send()
 }
