@@ -14,18 +14,29 @@ func NewReconciler() delivery.Reconciler {
 	return &Reconciler{}
 }
 
-func (r *Reconciler) Init() error {
+func (c *Reconciler) Init() error {
 	creds := credentials.NewCredentialUC()
 
 	awsUC := aws.NewAWSUC(creds)
-	_, err := awsUC.GetTaskEnvironment()
+
+	_, err := awsUC.GetTaskMetadata()
 	if err != nil {
 		return err
 	}
+
+	runner, err := awsUC.CreateRunner()
+	if err != nil {
+		return err
+	}
+
+	for _, r := range runner {
+		logs.InfoF("Created a runner: %v", r.ARN)
+	}
+
 	return nil
 }
 
-func (r *Reconciler) Reconcile() error {
+func (c *Reconciler) Reconcile() error {
 	logs.Info("Doing something...")
 	return nil
 }

@@ -2,6 +2,10 @@
   "family": "github-runner-task",
   "cpu": "512",
   "memory": "1024",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "networkMode": "awsvpc",
   "containerDefinitions": [
     {
       "name": "ecs-container-exporter",

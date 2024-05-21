@@ -15,8 +15,8 @@
       ],
       "environment": [
         {
-          "name": "ENV_VAR",
-          "value": "value"
+          "name": "REPO",
+          "value": "test/test"
         }
       ]
     }

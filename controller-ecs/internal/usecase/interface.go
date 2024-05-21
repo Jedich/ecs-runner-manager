@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	metadata "github.com/brunoscheufler/aws-ecs-metadata-go"
 	"github.com/google/go-github/v62/github"
 	"runner-controller-ecs/internal/domain/model"
 )
@@ -14,6 +15,6 @@ type IGithubUC interface {
 }
 
 type IAWSUC interface {
-	GetTaskEnvironment() (map[string]string, error)
-	CreateRunner() error
+	GetTaskMetadata() (*metadata.TaskMetadataV4, error)
+	CreateRunner() ([]*model.Runner, error)
 }
