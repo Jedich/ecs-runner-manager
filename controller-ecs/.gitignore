@@ -18,6 +18,6 @@
 /conf/config.yml
 /logs
 /result.json
-/testdata/javascript/complex_ex1/node_modules/
 /bin
 /testdata
+docker-compose.ecs-local.*

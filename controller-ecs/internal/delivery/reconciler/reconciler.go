@@ -19,7 +19,6 @@ func (r *Reconciler) Init() error {
 	if err != nil {
 		return err
 	}
-	logs.Info("Init done")
 	return nil
 }
 

@@ -4,7 +4,7 @@ import (
 	"runner-controller-ecs/internal/delivery"
 	"runner-controller-ecs/internal/delivery/reconciler"
 	"runner-controller-ecs/internal/infrastructure/logs"
-	"runner-controller-ecs/tools"
+	"runner-controller-ecs/internal/tools"
 )
 
 func main() {

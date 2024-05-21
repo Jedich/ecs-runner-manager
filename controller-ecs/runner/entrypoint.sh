@@ -23,10 +23,6 @@ else
     "${TOKEN_REGISTRATION_URL}" \
     | jq -r '.token')"
 fi
-cd /
-./go-scrapper &
 
-cd /home/runner
+sleep infinity &
 ./config.sh --labels "${LABELS}" --url "${GITHUB_ACTIONS_RUNNER_CONTEXT}" --token "${RUNNER_TOKEN}" --name "${RUNNER_NAME}" --work "${RUNNER_WORKDIR}" --ephemeral
-./run.sh
-
