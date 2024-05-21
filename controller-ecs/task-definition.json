@@ -7,13 +7,6 @@
       "cpu": 256,
       "memory": 512,
       "essential": true,
-      "mountPoints": [
-        {
-          "sourceVolume": "shared-config",
-          "containerPath": "/shared",
-          "readOnly": true
-        }
-      ],
       "portMappings": [
         {
           "containerPort": 80,
@@ -26,32 +19,6 @@
           "value": "value"
         }
       ]
-    },
-    {
-      "name": "prometheus",
-      "image": "prom/prometheus",
-      "essential": true,
-      "portMappings": [
-        {
-          "containerPort": 9090,
-          "protocol": "tcp"
-        }
-      ],
-      "mountPoints": [
-        {
-          "sourceVolume": "shared-config",
-          "containerPath": "/shared",
-          "readOnly": true
-        }
-      ]
-    }
-  ],
-  "volumes": [
-    {
-      "name": "shared-config",
-      "host": {
-        "sourcePath": "/ecs/shared-config"
-      }
     }
   ]
 }

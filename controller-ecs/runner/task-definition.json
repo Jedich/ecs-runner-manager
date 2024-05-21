@@ -1,12 +1,14 @@
 {
-  "family": "my-ecs-task",
+  "family": "github-runner-task",
+  "cpu": "512",
+  "memory": "1024",
   "containerDefinitions": [
     {
       "name": "ecs-container-exporter",
       "image": "raags/ecs-container-exporter:latest",
       "portMappings": [
         {
-          "hostPort": 0,
+          "hostPort": 9545,
           "protocol": "tcp",
           "containerPort": 9545
         }
@@ -26,10 +28,9 @@
     },
     {
       "name": "github-runner",
-      "image": "my-runner:latest",
+      "image": "jedich/github-runner-container:latest",
       "cpu": 256,
       "memory": 512,
-      "essential": true,
       "portMappings": [
         {
           "containerPort": 80,
