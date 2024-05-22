@@ -203,9 +203,14 @@ func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
 			return nil, err
 		}
 	}
+	logs.InfoF("Found task definition: %s, but creating new revision", taskDefArn)
+	taskDefArn, err = c.createTaskDefinition(ctx, ecsClient, roleArn)
+	if err != nil {
+		return nil, err
+	}
 
-	logs.InfoF("Using IAM Role ARN: %s\n", roleArn)
-	logs.InfoF("Using Task Definition ARN: %s\n", taskDefArn)
+	logs.InfoF("Using IAM Role ARN: %s", roleArn)
+	logs.InfoF("Using Task Definition ARN: %s", taskDefArn)
 
 	return metav4, nil
 }
@@ -342,7 +347,43 @@ func (c *AWSUC) checkTaskDefinition(ctx context.Context, client *ecs.Client) (st
 
 func (c *AWSUC) createTaskDefinition(ctx context.Context, client *ecs.Client, roleArn string) (string, error) {
 	taskDef := runner.GetDefaultTaskDefinition()
-	fmt.Println(taskDef)
+	creds, err := c.credentialsUC.GetCredentials()
+	if err != nil {
+		return "", err
+	}
+
+	var container ecsTypes.ContainerDefinition
+	ok := false
+	for i, cont := range taskDef.ContainerDefinitions {
+		if *cont.Name == "github-runner" {
+			container = cont
+			container.Environment = append(container.Environment, []ecsTypes.KeyValuePair{
+				{
+					Name:  aws.String("RUNNER_NAME"),
+					Value: aws.String("linux-github-runner"),
+				},
+				{
+					Name:  aws.String("GITHUB_ACTIONS_RUNNER_CONTEXT"),
+					Value: aws.String(fmt.Sprintf("https://github.com/%s/%s", creds.Owner, creds.Repo)),
+				},
+				{
+					Name:  aws.String("GITHUB_ACCESS_TOKEN"),
+					Value: aws.String(creds.GithubPAT),
+				},
+				{
+					Name:  aws.String("LABELS"),
+					Value: aws.String("a1"),
+				},
+			}...)
+			taskDef.ContainerDefinitions[i] = container
+			ok = true
+			break
+		}
+	}
+
+	if !ok {
+		return "", errors.New("container github-runner not found in default task definition")
+	}
 
 	taskDef.TaskRoleArn = aws.String(roleArn)
 
@@ -368,7 +409,7 @@ func (c *AWSUC) runTask(ctx context.Context, client *ecs.Client) ([]ecsTypes.Tas
 		NetworkConfiguration: &ecsTypes.NetworkConfiguration{
 			AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
 				Subnets:        c.subnets,
-				AssignPublicIp: ecsTypes.AssignPublicIpDisabled,
+				AssignPublicIp: ecsTypes.AssignPublicIpEnabled,
 			},
 		},
 	}
@@ -390,11 +431,11 @@ func (c *AWSUC) runTask(ctx context.Context, client *ecs.Client) ([]ecsTypes.Tas
 	}
 
 	for _, task := range tasks.Tasks {
-		fmt.Printf("Started task: %v\n", *task.TaskArn)
+		logs.InfoF("Started task: %v", *task.TaskArn)
 		for _, container := range task.Containers {
 			if *container.Name == ExporterContainerName {
 				for _, network := range container.NetworkInterfaces {
-					logs.InfoF("%s container IP: %v\n", *container.Name, *network.PrivateIpv4Address)
+					logs.InfoF("%s container PrivateIPv4: %v", *container.Name, *network.PrivateIpv4Address)
 				}
 				break
 			}

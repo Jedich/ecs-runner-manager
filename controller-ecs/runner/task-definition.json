@@ -9,26 +9,17 @@
   "containerDefinitions": [
     {
       "name": "ecs-container-exporter",
-      "image": "raags/ecs-container-exporter:latest",
+      "image": "quay.io/prometheuscommunity/ecs-exporter:latest",
       "portMappings": [
         {
-          "hostPort": 9545,
+          "hostPort": 9779,
           "protocol": "tcp",
-          "containerPort": 9545
+          "containerPort": 9779
         }
       ],
       "command": [],
       "cpu": 256,
-      "memory": 512,
-      "dockerLabels": {
-        "PROMETHEUS_EXPORTER_PORT": "9545"
-      },
-      "environment": [
-        {
-          "name": "INTERVAL",
-          "value": "5"
-        }
-      ]
+      "memory": 512
     },
     {
       "name": "github-runner",

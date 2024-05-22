@@ -2,17 +2,21 @@ package http
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"runner-controller-ecs/internal/domain/model"
 	"runner-controller-ecs/internal/infrastructure/logs"
+	"runner-controller-ecs/internal/usecase/broker"
 )
 
 type bodyLogWriter struct {
 	gin.ResponseWriter
 	body *bytes.Buffer
 }
+
+const PORT = 80
 
 // LoggerMiddleware is a middleware function to log incoming requests
 func LoggerMiddleware() gin.HandlerFunc {
@@ -33,7 +37,7 @@ func LoggerMiddleware() gin.HandlerFunc {
 	}
 }
 
-func StartWebhookServer() {
+func StartWebhookServer(broker *broker.Broker[model.WorkflowJobWebhook]) {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
@@ -43,22 +47,22 @@ func StartWebhookServer() {
 	// Define a route to receive webhook events
 	router.POST("/ecs_runner_hook", func(c *gin.Context) {
 		// Parse the webhook payload
-		var payload model.Webhook
+		var payload model.WorkflowJobWebhook
 		if err := c.BindJSON(&payload); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse webhook payload"})
 			return
 		}
 
-		//TODO
+		broker.Publish(payload)
 
 		c.JSON(http.StatusOK, gin.H{"message": "Webhook received successfully"})
 	})
 
 	// Run the HTTP server in a Goroutine
 	go func() {
-		if err := router.Run(":80"); err != nil {
+		if err := router.Run(fmt.Sprintf(":%d", PORT)); err != nil {
 			log.Fatal("Failed to start server:", err)
 		}
 	}()
-	logs.Info("Launched GIN to listen to Github Webhook requests")
+	logs.InfoF("Launched GIN to listen to Github Webhook requests at port :%d", PORT)
 }

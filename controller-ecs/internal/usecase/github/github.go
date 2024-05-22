@@ -67,7 +67,6 @@ func (c *GithubUC) GetWebhook(ip string) (*github.Hook, error) {
 		}
 
 		logs.Info("Deleted existing webhook")
-		return existingHook, nil
 	}
 	// Create a new webhook
 	config := &github.HookConfig{

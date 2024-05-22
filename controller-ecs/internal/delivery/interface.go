@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"runner-controller-ecs/internal/domain"
+	"runner-controller-ecs/internal/domain/model"
 	"runner-controller-ecs/internal/infrastructure/logs"
 	"time"
 )
@@ -10,7 +11,8 @@ const INTERVAL = 5 * time.Second
 
 type Reconciler interface {
 	Init() error
-	Reconcile() error
+	Reconcile(brokerChannel chan model.WorkflowJobWebhook) error
+	SubscribeBroker() chan model.WorkflowJobWebhook
 }
 
 func StartReconcileLoop(r Reconciler) {
@@ -27,11 +29,12 @@ func StartReconcileLoop(r Reconciler) {
 	ticker := time.NewTicker(INTERVAL)
 	defer ticker.Stop()
 
+	brokerChannel := r.SubscribeBroker()
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				if err := r.Reconcile(); err != nil {
+				if err := r.Reconcile(brokerChannel); err != nil {
 					reconcileErrors <- err
 				} else {
 					logs.Info("Job successful, waiting for next interval...")

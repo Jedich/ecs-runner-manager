@@ -24,5 +24,5 @@ else
     | jq -r '.token')"
 fi
 
-sleep infinity &
 ./config.sh --labels "${LABELS}" --url "${GITHUB_ACTIONS_RUNNER_CONTEXT}" --token "${RUNNER_TOKEN}" --name "${RUNNER_NAME}" --work "${RUNNER_WORKDIR}" --ephemeral
+./run.sh
