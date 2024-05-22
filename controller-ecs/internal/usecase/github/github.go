@@ -4,23 +4,37 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/go-github/v62/github"
+	"math/rand"
 	"runner-controller-ecs/internal/infrastructure/logs"
 	"runner-controller-ecs/internal/usecase"
+	"strings"
 )
 
 type GithubUC struct {
-	credentialUC usecase.ICredentialUC
-	ctx          context.Context
+	credentialUC  usecase.ICredentialUC
+	webhookSecret string
+	ctx           context.Context
 }
 
-func NewCredentialUC(credentialUC usecase.ICredentialUC) usecase.IGithubUC {
+const letterBytes = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func NewGithubUC(credentialUC usecase.ICredentialUC) usecase.IGithubUC {
 	return &GithubUC{
-		credentialUC: credentialUC,
-		ctx:          context.Background(),
+		credentialUC:  credentialUC,
+		webhookSecret: randString(16),
+		ctx:           context.Background(),
 	}
 }
 
-func (c *GithubUC) GetWebhook() (*github.Hook, error) {
+func randString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
+	}
+	return string(b)
+}
+
+func (c *GithubUC) GetWebhook(ip string) (*github.Hook, error) {
 	credentials, err := c.credentialUC.GetCredentials()
 	if err != nil {
 		return nil, err
@@ -28,7 +42,7 @@ func (c *GithubUC) GetWebhook() (*github.Hook, error) {
 
 	client := github.NewClient(nil).WithAuthToken(credentials.GithubPAT)
 
-	targetURL := "https://your-webhook-url"
+	targetEndpoint := "ecs_runner_hook"
 
 	hooks, _, err := client.Repositories.ListHooks(c.ctx, credentials.Owner, credentials.Repo, nil)
 	if err != nil {
@@ -37,37 +51,41 @@ func (c *GithubUC) GetWebhook() (*github.Hook, error) {
 
 	var existingHook *github.Hook
 	for _, hook := range hooks {
-		if *hook.Config.URL == targetURL {
+		if strings.Contains(*hook.Config.URL, targetEndpoint) {
 			existingHook = hook
 			break
 		}
 	}
 
-	url := "https://your-webhook-url"
-	secret := "your-webhook-secret"
+	url := fmt.Sprintf("http://%s/%s", ip, targetEndpoint)
 	contentType := "json"
 
 	if existingHook != nil {
-		logs.Info("Retrieved existing webhook")
-		return existingHook, nil
-	} else {
-		// Create a new webhook
-		config := &github.HookConfig{
-			ContentType: &contentType,
-			InsecureSSL: nil,
-			URL:         &url,
-			Secret:      &secret,
-		}
-		hook := &github.Hook{
-			Config: config,
-			Events: []string{"workflow_job"},
-			Active: github.Bool(true),
-		}
-		newHook, _, err := client.Repositories.CreateHook(c.ctx, credentials.Owner, credentials.Repo, hook)
+		_, err = client.Repositories.DeleteHook(c.ctx, credentials.Owner, credentials.Repo, *existingHook.ID)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("Webhook created successfully")
-		return newHook, nil
+
+		logs.Info("Deleted existing webhook")
+		return existingHook, nil
 	}
+	// Create a new webhook
+	config := &github.HookConfig{
+		ContentType: &contentType,
+		InsecureSSL: nil,
+		URL:         &url,
+		Secret:      &c.webhookSecret,
+	}
+	hook := &github.Hook{
+		Config: config,
+		Events: []string{"workflow_job"},
+		Active: github.Bool(true),
+	}
+	newHook, _, err := client.Repositories.CreateHook(c.ctx, credentials.Owner, credentials.Repo, hook)
+	if err != nil {
+		return nil, err
+	}
+
+	logs.Info("Webhook created successfully")
+	return newHook, nil
 }

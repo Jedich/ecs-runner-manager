@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 
@@ -34,6 +35,7 @@ type AWSUC struct {
 	taskDefinitionArn     string
 
 	controllerMetadata *metadata.TaskMetadataV4
+	controllerPublicIP string
 	accountID          string
 	region             string
 	subnets            []string
@@ -47,11 +49,9 @@ const (
 )
 
 func NewAWSUC(credentialsUC usecase.ICredentialUC) usecase.IAWSUC {
-	uc := &AWSUC{
+	return &AWSUC{
 		credentialsUC: credentialsUC,
 	}
-
-	return uc
 }
 
 func (c *AWSUC) LoadConfig() (*aws.Config, error) {
@@ -67,6 +67,10 @@ func (c *AWSUC) LoadConfig() (*aws.Config, error) {
 
 	c.cfg = &cfg
 	return &cfg, nil
+}
+
+func (c *AWSUC) GetPublicIP() string {
+	return c.controllerPublicIP
 }
 
 func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
@@ -103,21 +107,75 @@ func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
 
 	logs.InfoF("%s %s %s %s", c.accountID, c.region, metav4.Cluster, metav4.TaskARN)
 
-	if c.subnets == nil {
+	if c.subnets == nil || c.controllerPublicIP == "" {
+
+		var tasks *ecs.DescribeTasksOutput
+		done := false
+		retries := 3
+		var eniID string
+		for !done && retries > 0 {
+
+			logs.Info("Waiting for ENI to be attached to the task...")
+			time.Sleep(10 * time.Second)
+
+			tasks, err = ecsClient.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+				Cluster: aws.String(c.controllerMetadata.Cluster),
+				Tasks:   []string{c.controllerMetadata.TaskARN},
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			// Extract the ENI ID from the task
+			for _, task := range tasks.Tasks {
+				for _, attachment := range task.Attachments {
+					if *attachment.Type == "ElasticNetworkInterface" {
+						for _, detail := range attachment.Details {
+							logs.Info(*detail.Name)
+							if detail.Name != nil && *detail.Name == "networkInterfaceId" {
+								eniID = *detail.Value
+								done = true
+								break
+							}
+						}
+					}
+				}
+			}
+			retries--
+		}
 		var subnets []string
 
-		tasks, err := ecsClient.DescribeTasks(ctx, &ecs.DescribeTasksInput{
-			Cluster: aws.String(c.controllerMetadata.Cluster),
-			Tasks:   []string{c.controllerMetadata.TaskARN},
+		subnets = strings.Split(*tasks.Tasks[0].Attachments[0].Details[0].Value, ",")
+
+		ec2Client := ec2.NewFromConfig(*cfg)
+
+		if eniID == "" {
+			return nil, errors.New("no ENI found for controller")
+		}
+
+		// Describe the ENI to get the public IP address
+		enis, err := ec2Client.DescribeNetworkInterfaces(context.TODO(), &ec2.DescribeNetworkInterfacesInput{
+			NetworkInterfaceIds: []string{eniID},
 		})
 		if err != nil {
 			return nil, err
 		}
 
-		subnets = strings.Split(*tasks.Tasks[0].Attachments[0].Details[0].Value, ",")
+		// Extract the public IP address
+		var publicIP string
+		for _, eni := range enis.NetworkInterfaces {
+			if eni.Association != nil && eni.Association.PublicIp != nil {
+				publicIP = *eni.Association.PublicIp
+			}
+		}
+
+		if publicIP == "" {
+			return nil, fmt.Errorf("no public IP found for ENI %s", eniID)
+		}
+
+		c.controllerPublicIP = publicIP
 
 		c.subnets = subnets
-
 	}
 
 	// Check if the IAM role exists
@@ -169,7 +227,7 @@ func (c *AWSUC) CreateRunner() ([]*model.Runner, error) {
 		return nil, err
 	}
 
-	runners := make([]*model.Runner, 1)
+	runners := make([]*model.Runner, 0, 1)
 	for _, task := range tasks {
 		r := &model.Runner{
 			ARN: *task.TaskArn,

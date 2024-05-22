@@ -24,12 +24,9 @@ func (c *CredentialUC) GetCredentials() (*model.Credentials, error) {
 
 		repoOwner := strings.Split(os.Getenv("REPO"), "/")
 		c.credentials = &model.Credentials{
-			Owner:              repoOwner[0],
-			Repo:               repoOwner[1],
-			GithubPAT:          os.Getenv("GITHUB_PAT"),
-			AWSAccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
-			AWSSecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			AWSRegion:          os.Getenv("AWS_REGION"),
+			Owner:     repoOwner[0],
+			Repo:      repoOwner[1],
+			GithubPAT: os.Getenv("GITHUB_PAT"),
 		}
 	}
 	return c.credentials, nil

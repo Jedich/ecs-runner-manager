@@ -6,8 +6,8 @@ import (
 )
 
 var requiredEnvVars = []string{
-	//"GITHUB_PAT",
-	//"REPO_NAME",
+	"GITHUB_PAT",
+	"REPO",
 }
 
 func CheckEnvVars() {

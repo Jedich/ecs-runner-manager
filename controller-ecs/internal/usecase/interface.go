@@ -11,10 +11,11 @@ type ICredentialUC interface {
 }
 
 type IGithubUC interface {
-	GetWebhook() (*github.Hook, error)
+	GetWebhook(ip string) (*github.Hook, error)
 }
 
 type IAWSUC interface {
 	GetTaskMetadata() (*metadata.TaskMetadataV4, error)
 	CreateRunner() ([]*model.Runner, error)
+	GetPublicIP() string
 }
