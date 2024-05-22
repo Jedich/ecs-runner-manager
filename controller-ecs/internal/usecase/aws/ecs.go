@@ -27,6 +27,7 @@ import (
 
 type AWSUC struct {
 	credentialsUC usecase.ICredentialUC
+	cfg           *aws.Config
 
 	defaultTaskDefinition *ecs.RegisterTaskDefinitionInput
 	executionRoleArn      string
@@ -53,7 +54,24 @@ func NewAWSUC(credentialsUC usecase.ICredentialUC) usecase.IAWSUC {
 	return uc
 }
 
+func (c *AWSUC) LoadConfig() (*aws.Config, error) {
+	if c.cfg != nil {
+		return c.cfg, nil
+	}
+	ctx := context.TODO()
+
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(c.region))
+	if err != nil {
+		return nil, err
+	}
+
+	c.cfg = &cfg
+	return &cfg, nil
+}
+
 func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
+	ctx := context.TODO()
+
 	if c.controllerMetadata != nil {
 		return c.controllerMetadata, nil
 	}
@@ -68,27 +86,22 @@ func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
 		return nil, errors.New("unsupported metadata type")
 	}
 
-	arnSplit := strings.Split(metav4.TaskARN, ":")
-	c.accountID = arnSplit[4]
-	c.region = arnSplit[3]
-
-	logs.InfoF("%s %s %s %s", c.accountID, c.region, metav4.Cluster, metav4.TaskARN)
-
 	c.controllerMetadata = metav4
-	return metav4, nil
-}
 
-func (c *AWSUC) CreateRunner() ([]*model.Runner, error) {
-	ctx := context.TODO()
-
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(c.region))
+	cfg, err := c.LoadConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	// Create an IAM client
-	iamClient := iam.NewFromConfig(cfg)
-	ecsClient := ecs.NewFromConfig(cfg)
+	iamClient := iam.NewFromConfig(*cfg)
+	ecsClient := ecs.NewFromConfig(*cfg)
+
+	arnSplit := strings.Split(metav4.TaskARN, ":")
+	c.accountID = arnSplit[4]
+	c.region = arnSplit[3]
+
+	logs.InfoF("%s %s %s %s", c.accountID, c.region, metav4.Cluster, metav4.TaskARN)
 
 	if c.subnets == nil {
 		var subnets []string
@@ -101,7 +114,7 @@ func (c *AWSUC) CreateRunner() ([]*model.Runner, error) {
 			return nil, err
 		}
 
-		subnets = strings.Split(*tasks.Tasks[0].Attachments[0].Details[2].Value, ",")
+		subnets = strings.Split(*tasks.Tasks[0].Attachments[0].Details[0].Value, ",")
 
 		c.subnets = subnets
 
@@ -135,6 +148,20 @@ func (c *AWSUC) CreateRunner() ([]*model.Runner, error) {
 
 	logs.InfoF("Using IAM Role ARN: %s\n", roleArn)
 	logs.InfoF("Using Task Definition ARN: %s\n", taskDefArn)
+
+	return metav4, nil
+}
+
+func (c *AWSUC) CreateRunner() ([]*model.Runner, error) {
+	ctx := context.TODO()
+
+	cfg, err := c.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create an IAM client
+	ecsClient := ecs.NewFromConfig(*cfg)
 
 	// Run ECS task
 	tasks, err := c.runTask(ctx, ecsClient)
@@ -271,7 +298,7 @@ func (c *AWSUC) createTaskDefinition(ctx context.Context, client *ecs.Client, ro
 }
 
 func (c *AWSUC) runTask(ctx context.Context, client *ecs.Client) ([]ecsTypes.Task, error) {
-	if c.controllerMetadata != nil || c.taskDefinitionArn == "" {
+	if c.controllerMetadata == nil || c.taskDefinitionArn == "" {
 		return nil, errors.New("task metadata (cluster name) or task definition not set")
 	}
 

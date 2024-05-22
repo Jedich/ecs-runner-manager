@@ -1,9 +1,9 @@
 {
-  "family": "my-ecs-task",
+  "family": "runner-controller",
   "containerDefinitions": [
     {
       "name": "ecs-runner-controller",
-      "image": "my-image:latest",
+      "image": "jedich/ecs-runner-controller:latest",
       "cpu": 256,
       "memory": 512,
       "essential": true,

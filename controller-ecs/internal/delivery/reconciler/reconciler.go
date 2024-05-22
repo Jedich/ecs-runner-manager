@@ -30,7 +30,7 @@ func (c *Reconciler) Init() error {
 	}
 
 	for _, r := range runner {
-		logs.InfoF("Created a runner: %v", r.ARN)
+		logs.InfoF("%v", r)
 	}
 
 	return nil
