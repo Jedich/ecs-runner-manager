@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"runner-controller-ecs/internal/tools"
 	"strings"
 	"time"
 
@@ -23,7 +25,7 @@ import (
 	"runner-controller-ecs/internal/domain/model"
 	"runner-controller-ecs/internal/infrastructure/logs"
 	"runner-controller-ecs/internal/usecase"
-	"runner-controller-ecs/runner"
+	runnerFile "runner-controller-ecs/runner"
 )
 
 type AWSUC struct {
@@ -131,7 +133,6 @@ func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
 				for _, attachment := range task.Attachments {
 					if *attachment.Type == "ElasticNetworkInterface" {
 						for _, detail := range attachment.Details {
-							logs.Info(*detail.Name)
 							if detail.Name != nil && *detail.Name == "networkInterfaceId" {
 								eniID = *detail.Value
 								done = true
@@ -203,8 +204,12 @@ func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
 			return nil, err
 		}
 	}
-	logs.InfoF("Found task definition: %s, but creating new revision", taskDefArn)
-	taskDefArn, err = c.createTaskDefinition(ctx, ecsClient, roleArn)
+
+	if forceNewTaskDef := os.Getenv("FORCE_NEW_TASKDEF"); forceNewTaskDef == "true" {
+		logs.InfoF("Found task definition: %s, but creating new revision", taskDefArn)
+		taskDefArn, err = c.createTaskDefinition(ctx, ecsClient, roleArn)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +220,7 @@ func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
 	return metav4, nil
 }
 
-func (c *AWSUC) CreateRunner() ([]*model.Runner, error) {
+func (c *AWSUC) CreateRunner() (*model.Runner, error) {
 	ctx := context.TODO()
 
 	cfg, err := c.LoadConfig()
@@ -223,32 +228,31 @@ func (c *AWSUC) CreateRunner() ([]*model.Runner, error) {
 		return nil, err
 	}
 
-	// Create an IAM client
+	// Create an ECS client
 	ecsClient := ecs.NewFromConfig(*cfg)
 
 	// Run ECS task
-	tasks, err := c.runTask(ctx, ecsClient)
+	task, name, err := c.runTask(ctx, ecsClient)
 	if err != nil {
 		return nil, err
 	}
 
-	runners := make([]*model.Runner, 0, 1)
-	for _, task := range tasks {
-		r := &model.Runner{
-			ARN: *task.TaskArn,
-		}
-		for _, container := range task.Containers {
-			if *container.Name == ExporterContainerName {
-				for _, network := range container.NetworkInterfaces {
-					r.MetricsPrivateIP = *network.PrivateIpv4Address
-				}
-				break
+	runner := &model.Runner{
+		Name:   name,
+		ARN:    *task.TaskArn,
+		Status: model.RunnerStatusReady,
+	}
+	for _, container := range task.Containers {
+		if *container.Name == ExporterContainerName {
+			for _, network := range container.NetworkInterfaces {
+				logs.InfoF("Runner %s, exporter PrivateIPv4: %v", runner.Name, *network.PrivateIpv4Address)
+				runner.PrivateIPv4 = *network.PrivateIpv4Address
 			}
+			break
 		}
-		runners = append(runners, r)
 	}
 
-	return runners, nil
+	return runner, nil
 }
 
 func (c *AWSUC) checkIAMRole(ctx context.Context, client *iam.Client) (string, error) {
@@ -346,7 +350,7 @@ func (c *AWSUC) checkTaskDefinition(ctx context.Context, client *ecs.Client) (st
 }
 
 func (c *AWSUC) createTaskDefinition(ctx context.Context, client *ecs.Client, roleArn string) (string, error) {
-	taskDef := runner.GetDefaultTaskDefinition()
+	taskDef := runnerFile.GetDefaultTaskDefinition()
 	creds, err := c.credentialsUC.GetCredentials()
 	if err != nil {
 		return "", err
@@ -360,7 +364,7 @@ func (c *AWSUC) createTaskDefinition(ctx context.Context, client *ecs.Client, ro
 			container.Environment = append(container.Environment, []ecsTypes.KeyValuePair{
 				{
 					Name:  aws.String("RUNNER_NAME"),
-					Value: aws.String("linux-github-runner"),
+					Value: aws.String("linux-runner"),
 				},
 				{
 					Name:  aws.String("GITHUB_ACTIONS_RUNNER_CONTEXT"),
@@ -372,7 +376,7 @@ func (c *AWSUC) createTaskDefinition(ctx context.Context, client *ecs.Client, ro
 				},
 				{
 					Name:  aws.String("LABELS"),
-					Value: aws.String("a1"),
+					Value: aws.String("mark1"),
 				},
 			}...)
 			taskDef.ContainerDefinitions[i] = container
@@ -396,16 +400,31 @@ func (c *AWSUC) createTaskDefinition(ctx context.Context, client *ecs.Client, ro
 	return c.taskDefinitionArn, nil
 }
 
-func (c *AWSUC) runTask(ctx context.Context, client *ecs.Client) ([]ecsTypes.Task, error) {
+func (c *AWSUC) runTask(ctx context.Context, client *ecs.Client) (*ecsTypes.Task, string, error) {
 	if c.controllerMetadata == nil || c.taskDefinitionArn == "" {
-		return nil, errors.New("task metadata (cluster name) or task definition not set")
+		return nil, "", errors.New("task metadata (cluster name) or task definition not set")
 	}
+
+	name := "linux-" + tools.RandString(6)
 
 	runTaskInput := &ecs.RunTaskInput{
 		Cluster:        aws.String(c.controllerMetadata.Cluster),
 		TaskDefinition: aws.String(c.taskDefinitionArn),
 		Count:          aws.Int32(1),
 		LaunchType:     ecsTypes.LaunchTypeFargate,
+		Overrides: &ecsTypes.TaskOverride{
+			ContainerOverrides: []ecsTypes.ContainerOverride{
+				{
+					Name: aws.String("github-runner"),
+					Environment: []ecsTypes.KeyValuePair{
+						{
+							Name:  aws.String("RUNNER_NAME"),
+							Value: aws.String(name),
+						},
+					},
+				},
+			},
+		},
 		NetworkConfiguration: &ecsTypes.NetworkConfiguration{
 			AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
 				Subnets:        c.subnets,
@@ -416,10 +435,10 @@ func (c *AWSUC) runTask(ctx context.Context, client *ecs.Client) ([]ecsTypes.Tas
 
 	runTaskOutput, err := client.RunTask(ctx, runTaskInput)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run task, %v", err)
+		return nil, "", fmt.Errorf("failed to run task, %v", err)
 	}
 
-	logs.Info("Task started, waiting for task to be provisioned...")
+	logs.InfoF("Task %s started, waiting for task to be provisioned...", name)
 	time.Sleep(5 * time.Second)
 
 	tasks, err := client.DescribeTasks(ctx, &ecs.DescribeTasksInput{
@@ -427,20 +446,12 @@ func (c *AWSUC) runTask(ctx context.Context, client *ecs.Client) ([]ecsTypes.Tas
 		Tasks:   []string{*runTaskOutput.Tasks[0].TaskArn},
 	})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	for _, task := range tasks.Tasks {
-		logs.InfoF("Started task: %v", *task.TaskArn)
-		for _, container := range task.Containers {
-			if *container.Name == ExporterContainerName {
-				for _, network := range container.NetworkInterfaces {
-					logs.InfoF("%s container PrivateIPv4: %v", *container.Name, *network.PrivateIpv4Address)
-				}
-				break
-			}
-		}
+	if len(tasks.Tasks) == 0 {
+		return nil, "", errors.New("no tasks found or created or may have exited early")
 	}
 
-	return tasks.Tasks, nil
+	return &tasks.Tasks[0], name, nil
 }

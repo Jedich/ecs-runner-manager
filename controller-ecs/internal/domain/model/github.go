@@ -6,5 +6,6 @@ type WorkflowJobWebhook struct {
 }
 
 type workflowJob struct {
-	Labels []string `json:"labels"`
+	RunnerName string   `json:"runner_name"`
+	Labels     []string `json:"labels"`
 }

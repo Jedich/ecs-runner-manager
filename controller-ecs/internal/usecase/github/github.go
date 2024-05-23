@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/go-github/v62/github"
-	"math/rand"
 	"runner-controller-ecs/internal/infrastructure/logs"
+	"runner-controller-ecs/internal/tools"
 	"runner-controller-ecs/internal/usecase"
 	"strings"
 )
@@ -16,22 +16,12 @@ type GithubUC struct {
 	ctx           context.Context
 }
 
-const letterBytes = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
 func NewGithubUC(credentialUC usecase.ICredentialUC) usecase.IGithubUC {
 	return &GithubUC{
 		credentialUC:  credentialUC,
-		webhookSecret: randString(16),
+		webhookSecret: tools.RandString(16),
 		ctx:           context.Background(),
 	}
-}
-
-func randString(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
-	}
-	return string(b)
 }
 
 func (c *GithubUC) GetWebhook(ip string) (*github.Hook, error) {

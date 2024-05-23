@@ -1,6 +1,8 @@
 package reconciler
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,11 +13,14 @@ import (
 	"runner-controller-ecs/internal/usecase/broker"
 	"runner-controller-ecs/internal/usecase/credentials"
 	gh "runner-controller-ecs/internal/usecase/github"
-	"strings"
+	"runner-controller-ecs/internal/usecase/prometheus"
+	"syscall"
 )
 
 type Reconciler struct {
-	awsUC usecase.IAWSUC
+	awsUC         usecase.IAWSUC
+	credentialsUC usecase.ICredentialUC
+	promUC        usecase.IPrometheusUC
 
 	broker *broker.Broker[model.WorkflowJobWebhook]
 
@@ -35,14 +40,16 @@ func (c *Reconciler) SubscribeBroker() chan model.WorkflowJobWebhook {
 }
 
 func (c *Reconciler) Init() error {
-	creds := credentials.NewCredentialUC()
+	c.runners = make(map[string]*model.Runner)
+	c.credentialsUC = credentials.NewCredentialUC()
+	c.promUC = prometheus.NewPrometheusUC()
 
 	_, err := c.awsUC.GetTaskMetadata()
 	if err != nil {
 		return err
 	}
 
-	githubUC := gh.NewGithubUC(creds)
+	githubUC := gh.NewGithubUC(c.credentialsUC)
 
 	_, err = githubUC.GetWebhook(c.awsUC.GetPublicIP())
 	if err != nil {
@@ -62,40 +69,107 @@ func (c *Reconciler) Reconcile(brokerChannel chan model.WorkflowJobWebhook) erro
 
 		logs.InfoF("Received webhook data: %v", data)
 
-		if data.Action != "queued" {
-			logs.Info("Job is not queued. Skipping...")
-			return nil
-		}
-		for _, label := range data.Job.Labels {
-			if label == "self-hosted" {
-				runner, err := c.awsUC.CreateRunner()
-				if err != nil {
-					return err
-				}
+		switch data.Action {
+		case "queued":
+			for _, label := range data.Job.Labels {
+				if label == "self-hosted" {
+					runner, err := c.awsUC.CreateRunner()
+					if err != nil {
+						return err
+					}
 
-				for _, r := range runner {
-					c.runners[r.MetricsPrivateIP] = r
-					logs.InfoF("%v", r)
+					c.runners[runner.Name] = runner
+					logs.InfoF("%v", runner)
 				}
 			}
+		default:
+			logs.InfoF("Runner assigned to job: '%s'", data.Job.RunnerName)
+			if _, ok := c.runners[data.Job.RunnerName]; !ok {
+				logs.InfoF("Runner %s not found. Skipping...", data.Job.RunnerName)
+				return nil
+			}
+			fallthrough
+		case "in_progress":
+			c.runners[data.Job.RunnerName].Status = model.RunnerStatusBusy
+		case "completed":
+			c.runners[data.Job.RunnerName].Status = model.RunnerStatusFinished
+		case "failed":
+			c.runners[data.Job.RunnerName].Status = model.RunnerStatusFailed
 		}
+
 		return nil
 	default:
-		for _, runner := range c.runners {
-			requestURL := fmt.Sprintf("http://%s:9779/metrics", runner.MetricsPrivateIP)
-			res, err := http.Get(requestURL)
-			if err != nil {
-				return fmt.Errorf("error making http request: %s", err)
-			}
-
-			resBody, err := io.ReadAll(res.Body)
-			if err != nil {
-				return fmt.Errorf("client: could not read response body: %s", err)
-			}
-			logs.InfoF("Runner: %s", runner.MetricsPrivateIP)
-			logs.InfoF("Metrics: %s", strings.ReplaceAll(string(resBody), "\n", " "))
+		err := c.reconcileDefault()
+		if err != nil {
+			return err
 		}
-		logs.Info("Reconcile AFK...")
 	}
+	return nil
+}
+
+func (c *Reconciler) reconcileDefault() error {
+	readers := make(map[string]io.Reader)
+	for name, runner := range c.runners {
+		if runner == nil {
+			logs.Info("Runner is nil. Skipping...")
+			continue
+		}
+		if runner.Status == "" || runner.Status == model.RunnerStatusFinished || runner.Status == model.RunnerStatusFailed {
+			logs.InfoF("Runner %s is in status %s. Skipping...", runner.Name, runner.Status)
+			continue
+		}
+
+		requestURL := fmt.Sprintf("http://%s:9779/metrics", runner.PrivateIPv4)
+		res, err := http.Get(requestURL)
+		if err != nil {
+			switch {
+			case errors.Is(err, syscall.ECONNREFUSED):
+				//logs.InfoF("Runner %s is not ready yet. Skipping...", runner.Name)
+				continue
+			case errors.Is(err, syscall.EHOSTUNREACH):
+				if _, ok := c.runners[name]; !ok {
+					//logs.InfoF("Runner %s not found. Skipping...", runner.Name)
+					test, err := json.MarshalIndent(c.runners, "", "  ")
+					if err != nil {
+						return err
+					}
+					logs.InfoF(string(test))
+				}
+				c.runners[name].Status = model.RunnerStatusFinished
+				logs.InfoF("Runner %s terminated", runner.Name)
+				continue
+			default:
+				logs.ErrorF("error making http request: %s", err)
+				continue
+			}
+		}
+
+		readers[name] = res.Body
+	}
+
+	toMap, err := c.promUC.ConvertToMap(readers)
+	if err != nil {
+		return err
+	}
+
+	if len(toMap) == 0 {
+		return nil
+	}
+
+	//logs.InfoF("Received metrics")
+
+	for k, v := range toMap {
+		if _, ok := c.runners[k]; !ok {
+			continue
+		}
+		c.runners[k].Metrics = v
+	}
+
+	m, err := json.MarshalIndent(c.runners, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	logs.InfoF(string(m))
 	return nil
 }

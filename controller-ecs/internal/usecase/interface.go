@@ -3,6 +3,7 @@ package usecase
 import (
 	metadata "github.com/brunoscheufler/aws-ecs-metadata-go"
 	"github.com/google/go-github/v62/github"
+	"io"
 	"runner-controller-ecs/internal/domain/model"
 )
 
@@ -16,6 +17,11 @@ type IGithubUC interface {
 
 type IAWSUC interface {
 	GetTaskMetadata() (*metadata.TaskMetadataV4, error)
-	CreateRunner() ([]*model.Runner, error)
+	CreateRunner() (*model.Runner, error)
 	GetPublicIP() string
+}
+
+type IPrometheusUC interface {
+	Combine(readers map[string]io.Reader) (string, error)
+	ConvertToMap(readers map[string]io.Reader) (map[string]model.Metrics, error)
 }
