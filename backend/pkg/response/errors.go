@@ -8,6 +8,7 @@ import (
 
 var (
 	ErrEmailAlreadyExist = errors.New("email already exist")
+	ErrUserNotFound      = errors.New("user not found")
 	ErrInvalidUserType   = errors.New("invalid user_type")
 	ErrInvalidPassword   = errors.New("invalid password")
 	ErrFailedGenerateJWT = errors.New("failed generate access token")

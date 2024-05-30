@@ -1,6 +1,9 @@
 package dto
 
-import "github.com/invopop/validation"
+import (
+	"github.com/invopop/validation"
+	"github.com/invopop/validation/is"
+)
 
 type CreateUserRequest struct {
 	Username string `json:"username"`
@@ -14,10 +17,10 @@ type CreateUserResponse struct {
 	ExpiredAt int64  `json:"expired_at"`
 }
 
-func (cup CreateUserRequest) Validate() error {
-	return validation.ValidateStruct(&cup,
-		validation.Field(&cup.Username, validation.Required, validation.Length(0, 50)),
-		validation.Field(&cup.Email, validation.Required),
-		validation.Field(&cup.Password, validation.Required),
+func (cup *CreateUserRequest) Validate() error {
+	return validation.ValidateStruct(cup,
+		validation.Field(&cup.Username, validation.Required, validation.Length(4, 50)),
+		validation.Field(&cup.Email, validation.Required, is.Email),
+		validation.Field(&cup.Password, validation.Required, validation.Length(6, 64)),
 	)
 }

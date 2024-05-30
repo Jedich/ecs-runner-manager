@@ -1,21 +1,25 @@
 package entities
 
 import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"runner-manager-backend/internal/users/dto"
-	"runner-manager-backend/pkg/database"
+	"time"
 )
 
 type User struct {
-	database.Model
-	Username string `bson:"username"`
-	Email    string `bson:"email"`
-	Password string `bson:"password"`
+	ID        primitive.ObjectID `bson:"_id,omitempty"`
+	Username  string             `bson:"username"`
+	Email     string             `bson:"email"`
+	Password  string             `bson:"password"`
+	CreatedAt time.Time          `bson:"created_at"`
+	UpdatedAt time.Time          `bson:"updated_at"`
 }
 
 func NewUser(data *dto.CreateUserRequest) *User {
 	return &User{
-		Username: data.Username,
-		Email:    data.Email,
-		Password: data.Password,
+		Username:  data.Username,
+		Email:     data.Email,
+		Password:  data.Password,
+		CreatedAt: time.Now(),
 	}
 }
