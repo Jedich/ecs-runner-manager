@@ -1,14 +1,15 @@
 app:
-  name: "golang-clean-architecture"
+  name: "runner-manager-backend"
   version: "v0.0.1"
   scheme: "http"
   host: "localhost:3002"
-  environment: local #local,development,staging,production
+  environment: development #local,development,staging,production
 
 server:
+  hosr: "0.0.0.0"
   port: "9090"
   debug: true
-  timezone: "Asia/Jakarta"
+  timezone: "Ukraine/Kyiv"
 
 
 database:
@@ -19,4 +20,4 @@ database:
   password: pwd
 
 authentication:
-  key: DoWithLogic!@#
+  key: example

@@ -14,10 +14,5 @@
 *.out
 
 # Dependency directories (remove the comment below to include it)
-/rsa_keys
-/conf/config.yml
-/logs
-/result.json
-/testdata/javascript/complex_ex1/node_modules/
+internal/config/config.yaml
 /bin
-/testdata

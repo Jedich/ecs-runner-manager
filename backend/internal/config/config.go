@@ -28,6 +28,7 @@ type (
 
 	// ServerConfig holds the configuration for the server settings.
 	ServerConfig struct {
+		Host     string // The host on which the server will listen.
 		Port     string // The port on which the server will listen.
 		Debug    bool   // Indicates if debug mode is enabled.
 		TimeZone string // The time zone setting for the server.
@@ -40,6 +41,7 @@ type (
 		Name     string
 		User     string
 		Password string
+		Options  string
 	}
 
 	AuthenticationConfig struct {

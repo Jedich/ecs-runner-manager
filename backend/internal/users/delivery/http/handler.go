@@ -18,3 +18,7 @@ func (h *handlers) CreateUser(c *gin.Context) {
 
 func (h *handlers) Login(c *gin.Context) {
 }
+
+func (h *handlers) GenerateApiKey(c *gin.Context) {
+
+}

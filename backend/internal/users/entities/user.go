@@ -1,13 +1,21 @@
 package entities
 
-import "time"
+import (
+	"runner-manager-backend/internal/users/dto"
+	"runner-manager-backend/pkg/database"
+)
 
 type User struct {
-	UserID    int64
-	Username  string
-	Email     string
-	Password  string
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	database.Model
+	Username string `bson:"username"`
+	Email    string `bson:"email"`
+	Password string `bson:"password"`
+}
+
+func NewUser(data *dto.CreateUserRequest) *User {
+	return &User{
+		Username: data.Username,
+		Email:    data.Email,
+		Password: data.Password,
+	}
 }
