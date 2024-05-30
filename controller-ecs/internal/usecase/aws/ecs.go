@@ -376,7 +376,7 @@ func (c *AWSUC) createTaskDefinition(ctx context.Context, client *ecs.Client, ro
 				},
 				{
 					Name:  aws.String("LABELS"),
-					Value: aws.String("mark1"),
+					Value: aws.String("saturn-v"),
 				},
 			}...)
 			taskDef.ContainerDefinitions[i] = container
