@@ -1,0 +1,22 @@
+app:
+  name: "golang-clean-architecture"
+  version: "v0.0.1"
+  scheme: "http"
+  host: "localhost:3002"
+  environment: local #local,development,staging,production
+
+server:
+  port: "9090"
+  debug: true
+  timezone: "Asia/Jakarta"
+
+
+database:
+  host: 127.0.0.1
+  port: 3306
+  name: users
+  user: root
+  password: pwd
+
+authentication:
+  key: DoWithLogic!@#
