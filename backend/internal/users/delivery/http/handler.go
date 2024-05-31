@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	"runner-manager-backend/internal/middleware"
 	"runner-manager-backend/internal/users"
 	"runner-manager-backend/internal/users/dto"
 	"runner-manager-backend/pkg/response"
@@ -57,6 +58,39 @@ func (h *handlers) Login(c *gin.Context) {
 	response.SuccessBuilder(authData).Send(c)
 }
 
-func (h *handlers) GenerateApiKey(c *gin.Context) {
+func (h *handlers) LoginViaApiKey(c *gin.Context) {
+	var request *dto.UserLoginApiKeyRequest
+	if err := c.Bind(&request); err != nil {
+		response.ErrorBuilder(response.BadRequest(err)).Send(c)
+		return
+	}
 
+	if err := request.Validate(); err != nil {
+		response.ErrorBuilder(response.BadRequest(response.ErrUserNotFound)).Send(c)
+		return
+	}
+
+	authData, err := h.uc.LoginViaApiKey(c, request)
+	if err != nil {
+		response.ErrorBuilder(response.BadRequest(err)).Send(c)
+		return
+	}
+
+	response.SuccessBuilder(authData).Send(c)
+}
+
+func (h *handlers) GenerateApiKey(c *gin.Context) {
+	userData, err := middleware.NewTokenInformation(c)
+	if err != nil {
+		response.ErrorBuilder(err).Send(c)
+		return
+	}
+
+	data, err := h.uc.GenerateApiKey(c, userData.Data.UserID)
+	if err != nil {
+		response.ErrorBuilder(err).Send(c)
+		return
+	}
+
+	response.SuccessBuilder(data).Send(c)
 }

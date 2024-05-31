@@ -32,29 +32,12 @@ func (uc *usecase) Login(ctx context.Context, request *dto.UserLoginRequest) (rs
 		return rsp, response.Unauthorized(response.ErrInvalidPassword)
 	}
 
-	claims := middleware.PayloadToken{
-		Data: &middleware.Data{
-			UserID: dataLogin.ID.Hex(),
-			Email:  dataLogin.Email,
-		},
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Minute * 60).Unix(),
-		},
+	jwtData := &middleware.Data{
+		UserID: dataLogin.ID.Hex(),
+		Email:  dataLogin.Email,
 	}
 
-	// Calculate the expiration time in seconds
-	expiresIn := claims.ExpiresAt - time.Now().Unix()
-
-	// Create token with claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Generate encoded token and send it as response.
-	tokenString, err := token.SignedString([]byte(uc.cfg.JWT.Key))
-	if err != nil {
-		return rsp, response.InternalServerError(err)
-	}
-
-	return &dto.UserLoginResponse{AccessToken: tokenString, ExpiredAt: expiresIn}, nil
+	return uc.generateJWT(jwtData)
 }
 
 func (uc *usecase) Create(ctx context.Context, payload *dto.CreateUserRequest) (userID string, err error) {
@@ -77,6 +60,58 @@ func (uc *usecase) Create(ctx context.Context, payload *dto.CreateUserRequest) (
 }
 
 func (uc *usecase) GenerateApiKey(ctx context.Context, userID string) (apiKey string, err error) {
-	//TODO implement me
-	panic("implement me")
+	key, err := app_crypto.GenerateAPIKey(userID, uc.cfg.Authentication.SignatureKey, 32)
+	if err != nil {
+		return apiKey, response.InternalServerError(err)
+	}
+
+	user := &entities.User{
+		ApiKey: key,
+	}
+
+	err = uc.repo.UpdateUserByID(ctx, userID, user)
+	if err != nil {
+		return "", response.InternalServerError(err)
+	}
+
+	return key, nil
+}
+
+func (uc *usecase) LoginViaApiKey(ctx context.Context, request *dto.UserLoginApiKeyRequest) (rsp *dto.UserLoginResponse, err error) {
+	apiKey := request.ApiKey
+
+	dataLogin, err := uc.repo.GetUserByApiKey(ctx, apiKey)
+	if err != nil {
+		return rsp, response.ErrUserNotFound
+	}
+
+	jwtData := &middleware.Data{
+		UserID: dataLogin.ID.Hex(),
+		Email:  dataLogin.Email,
+	}
+
+	return uc.generateJWT(jwtData)
+}
+
+func (uc *usecase) generateJWT(data *middleware.Data) (*dto.UserLoginResponse, error) {
+	claims := middleware.PayloadToken{
+		Data: data,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Minute * 60).Unix(),
+		},
+	}
+
+	// Calculate the expiration time in seconds
+	expiresIn := claims.ExpiresAt - time.Now().Unix()
+
+	// Create token with claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Generate encoded token and send it as response.
+	tokenString, err := token.SignedString([]byte(uc.cfg.JWT.Key))
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.UserLoginResponse{AccessToken: tokenString, ExpiredAt: expiresIn}, nil
 }

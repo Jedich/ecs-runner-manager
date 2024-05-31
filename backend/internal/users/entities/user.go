@@ -11,6 +11,7 @@ type User struct {
 	Username  string             `bson:"username"`
 	Email     string             `bson:"email"`
 	Password  string             `bson:"password"`
+	ApiKey    string             `bson:"api_key"`
 	CreatedAt time.Time          `bson:"created_at"`
 	UpdatedAt time.Time          `bson:"updated_at"`
 }

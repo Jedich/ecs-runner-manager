@@ -21,3 +21,4 @@ database:
 
 authentication:
   key: example
+  sign: example

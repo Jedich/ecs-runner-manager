@@ -60,8 +60,8 @@ func JWTMiddleware(cfg config.Config) gin.HandlerFunc {
 }
 
 func NewTokenInformation(c *gin.Context) (*PayloadToken, error) {
-	value, exists := c.Get(utils.AuthCtxKey)
-	if !exists {
+	value := c.MustGet(utils.AuthCtxKey)
+	if value == nil {
 		return nil, response.Unauthorized(response.ErrFailedGetTokenInformation)
 	}
 

@@ -11,6 +11,7 @@ var (
 	ErrUserNotFound      = errors.New("user not found")
 	ErrInvalidUserType   = errors.New("invalid user_type")
 	ErrInvalidPassword   = errors.New("invalid password")
+	ErrInvalidApiKey     = errors.New("invalid api key")
 	ErrFailedGenerateJWT = errors.New("failed generate access token")
 	ErrInvalidIsActive   = errors.New("invalid is_active")
 	ErrStatusValue       = errors.New("status should be 0 or 1")

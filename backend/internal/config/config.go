@@ -45,7 +45,8 @@ type (
 	}
 
 	AuthenticationConfig struct {
-		Key string
+		Key          string
+		SignatureKey string `yaml:"sign"`
 	}
 
 	JWTConfig struct {
