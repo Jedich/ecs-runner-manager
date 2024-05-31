@@ -12,12 +12,21 @@ import (
 	"runner-manager-backend/internal/config"
 	"runner-manager-backend/internal/infrastructure/logs"
 	"runner-manager-backend/internal/middleware"
-	userV1 "runner-manager-backend/internal/users/delivery/http"
-	userRepository "runner-manager-backend/internal/users/repository"
-	userUseCase "runner-manager-backend/internal/users/usecase"
 	"runner-manager-backend/pkg/database"
 	"syscall"
 	"time"
+
+	userV1 "runner-manager-backend/internal/users/delivery/http"
+	userRepository "runner-manager-backend/internal/users/repository"
+	userUseCase "runner-manager-backend/internal/users/usecase"
+
+	ctrlV1 "runner-manager-backend/internal/ctrls/delivery/http"
+	ctrlRepository "runner-manager-backend/internal/ctrls/repository"
+	ctrlUseCase "runner-manager-backend/internal/ctrls/usecase"
+
+	runnersV1 "runner-manager-backend/internal/runners/delivery/http"
+	runnersRepository "runner-manager-backend/internal/runners/repository"
+	runnersUseCase "runner-manager-backend/internal/runners/usecase"
 )
 
 type App struct {
@@ -45,12 +54,29 @@ func (app *App) Run() error {
 		c.String(http.StatusOK, "Hello Word 👋")
 	})
 
-	userRepo := userRepository.NewRepository(app.client.Database(app.cfg.Database.Name).Collection("users"))
+	usersColl := app.client.Database(app.cfg.Database.Name).Collection("users")
+	metricsColl := app.client.Database(app.cfg.Database.Name).Collection("metrics")
+
+	userRepo := userRepository.NewRepository(usersColl)
 	userUC := userUseCase.NewUseCase(userRepo, app.cfg)
 	userCTRL := userV1.NewHandlers(userUC)
 
+	ctrlRepo := ctrlRepository.NewRepository(usersColl)
+	ctrlUC := ctrlUseCase.NewUseCase(userRepo, ctrlRepo, app.cfg)
+	ctrlCTRL := ctrlV1.NewHandlers(ctrlUC)
+
+	runnersRepo := runnersRepository.NewRepository(usersColl, metricsColl)
+	runnersUC := runnersUseCase.NewUseCase(userRepo, runnersRepo, app.cfg)
+	runnersCTRL := runnersV1.NewHandlers(runnersUC)
+
 	userDomain := apiDomain.Group("/users")
 	userCTRL.UserRoutes(userDomain, app.cfg)
+
+	ctrlDomain := apiDomain.Group("/ctrl")
+	ctrlCTRL.CtrlRoutes(ctrlDomain, app.cfg)
+
+	runnersDomain := apiDomain.Group("/runners")
+	runnersCTRL.RunnerRoutes(runnersDomain, app.cfg)
 
 	// Wait for interrupt signal to gracefully shutdown the server with a timeout of 10 seconds.
 	// Use a buffered channel to avoid missing signals as recommended for signal.Notify

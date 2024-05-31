@@ -12,9 +12,9 @@ type CreateUserRequest struct {
 }
 
 type CreateUserResponse struct {
-	UserID    int64  `json:"user_id"`
-	Token     string `json:"token"`
-	ExpiredAt int64  `json:"expired_at"`
+	UserID      int64  `json:"user_id"`
+	AccessToken string `json:"access_token"`
+	ExpiredAt   int64  `json:"expired_at"`
 }
 
 func (cup *CreateUserRequest) Validate() error {

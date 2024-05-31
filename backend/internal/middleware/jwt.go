@@ -17,6 +17,7 @@ type PayloadToken struct {
 
 type Data struct {
 	UserID string `json:"user_id"`
+	CtrlID string `json:"ctrl_id"`
 	Email  string `json:"email"`
 }
 
