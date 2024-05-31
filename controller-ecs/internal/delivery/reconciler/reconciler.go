@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ type Reconciler struct {
 	broker *broker.Broker[model.WorkflowJobWebhook]
 
 	runners map[string]*model.Runner
+	jwt     string
 }
 
 func NewReconciler(awsUC usecase.IAWSUC, broker *broker.Broker[model.WorkflowJobWebhook]) delivery.Reconciler {
@@ -43,8 +45,59 @@ func (c *Reconciler) Init() error {
 	c.runners = make(map[string]*model.Runner)
 	c.credentialsUC = credentials.NewCredentialUC()
 	c.promUC = prometheus.NewPrometheusUC()
+	creds, err := c.credentialsUC.GetCredentials()
+	if err != nil {
+		return err
+	}
 
-	_, err := c.awsUC.GetTaskMetadata()
+	// Define the POST data
+	var jsonStr = map[string]interface{}{
+		"api_key": creds.ApiKey,
+	}
+
+	jsonData, err := json.Marshal(jsonStr)
+	if err != nil {
+		return err
+	}
+	url := creds.BackendURL
+
+	// Make the POST request
+	response, err := http.Post(url+"/api/ctrl/", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		logs.Error(err)
+		return nil
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		logs.Error(errors.New(fmt.Sprintf("error: %s", response.StatusCode)))
+		return nil
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		logs.Error(err)
+		return nil
+	}
+
+	var rsp model.AuthResponse
+	err = json.Unmarshal(body, &rsp)
+	if err != nil {
+		logs.Error(err)
+		return nil
+	}
+	c.jwt = rsp.Data.AccessToken
+
+	// Print the response body
+	logs.Info(string(body))
+
+	if c.jwt == "" {
+		logs.Error(errors.New("no jwt token found"))
+		return nil
+	}
+
+	_, err = c.awsUC.GetTaskMetadata()
 	if err != nil {
 		return err
 	}
@@ -165,11 +218,74 @@ func (c *Reconciler) reconcileDefault() error {
 		c.runners[k].Metrics = v
 	}
 
-	m, err := json.MarshalIndent(c.runners, "", "  ")
+	creds, err := c.credentialsUC.GetCredentials()
 	if err != nil {
 		return err
 	}
+	url := creds.BackendURL
+
+	rq := &model.ControllerRequest{
+		Runners: make([]*model.RequestRunner, 0, len(c.runners)),
+	}
+	for _, runner := range c.runners {
+		rq.Runners = append(rq.Runners, &model.RequestRunner{
+			Name:        runner.Name,
+			PrivateIPv4: runner.PrivateIPv4,
+			Status:      runner.Status,
+			Metrics:     []model.Metrics{runner.Metrics},
+		})
+	}
+
+	m, err := json.MarshalIndent(rq, "", "  ")
+	if err != nil {
+		logs.Error(err)
+		return nil
+	}
 
 	logs.InfoF(string(m))
+
+	jsonData, err := json.Marshal(rq)
+	if err != nil {
+		logs.Error(err)
+		return nil
+	}
+
+	req, err := http.NewRequest("POST", url+"/api/runners/", bytes.NewBuffer(jsonData))
+	if err != nil {
+		logs.Error(err)
+		return nil
+	}
+
+	if c.jwt == "" {
+		logs.Error(errors.New("no jwt token found"))
+		return nil
+	}
+
+	// Add the Content-Type and Authorization headers
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.jwt))
+
+	// Perform the request
+	client := &http.Client{}
+	response, err := client.Do(req)
+	if err != nil {
+		logs.Error(err)
+		return nil
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		logs.Error(errors.New(fmt.Sprintf("error: %s", response.StatusCode)))
+		return nil
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		logs.Error(err)
+		return nil
+	}
+
+	logs.Info(string(body))
 	return nil
 }

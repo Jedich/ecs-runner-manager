@@ -5,6 +5,7 @@ import (
 	"runner-controller-ecs/internal/domain/model"
 	"runner-controller-ecs/internal/usecase"
 	"strings"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -50,6 +51,7 @@ func (c *prometheusUC) ConvertToMap(readers map[string]io.Reader) (map[string]mo
 	resMap := make(map[string]model.Metrics)
 	for name, mf := range mfs {
 		res := make(model.Metrics)
+		res["timestamp"] = float64(time.Now().Unix())
 		for k, v := range mf {
 			if k == "ecs_cpu_seconds_total" {
 				sum := 0.0

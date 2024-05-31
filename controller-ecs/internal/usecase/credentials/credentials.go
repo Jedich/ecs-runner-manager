@@ -24,9 +24,11 @@ func (c *CredentialUC) GetCredentials() (*model.Credentials, error) {
 
 		repoOwner := strings.Split(os.Getenv("REPO"), "/")
 		c.credentials = &model.Credentials{
-			Owner:     repoOwner[0],
-			Repo:      repoOwner[1],
-			GithubPAT: os.Getenv("GITHUB_PAT"),
+			Owner:      repoOwner[0],
+			Repo:       repoOwner[1],
+			GithubPAT:  os.Getenv("GITHUB_PAT"),
+			BackendURL: os.Getenv("BACKEND_URL"),
+			ApiKey:     os.Getenv("BACKEND_API_KEY"),
 		}
 	}
 	return c.credentials, nil

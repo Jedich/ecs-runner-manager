@@ -9,6 +9,8 @@ import (
 var requiredEnvVars = []string{
 	"GITHUB_PAT",
 	"REPO",
+	"BACKEND_URL",
+	"BACKEND_API_KEY",
 }
 
 func CheckEnvVars() {
