@@ -1,0 +1,26 @@
+.plotbar-container {
+    transition: transform 0.3s ease, opacity 0.3s ease, width 0.3s ease;
+    transform: translateX(-100%);
+    opacity: 0;
+    width: 0;
+    position: relative;
+    /* Change to fixed */
+    right: 0;
+    border-left: 1px solid #ddd;
+    min-height: calc(100vh - 60px);
+    /* Adjust this value as needed */
+    background: #fdfdfd;
+    padding: 0;
+}
+
+.plotbar-container.visible {
+    transform: translateX(0);
+    opacity: 1;
+    right: inherit;
+    width: 40%;
+    /* Adjust width as per your requirement */
+}
+
+.plotbar-inside {
+    padding: 10px;
+}

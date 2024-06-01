@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import Header from './components/Header';
-import Sidebar from './components/Sidebar';
-import RunnerController from './components/RunnerController';
-import Plot from './components/Plot';
+import Header from './Header';
+import Sidebar from './Sidebar';
+import RunnerController from './RunnerController';
+import Plot from './Plot';
 import Chart from 'chart.js/auto';
-import './App.css';
+import '../styles/App.css';
+import Plotbar from './Plotbar';
 
 const data = {
   "username": "test",
@@ -33,33 +34,46 @@ const data = {
 
 function App() {
   const [highlightedController, setHighlightedController] = useState(null);
+  const [plotController, setPlotController] = useState(null);
 
   const handleOptionsClick = (controller) => {
+    if (plotController && controller !== highlightedController) {
+      setPlotController(null);
+    }
     setHighlightedController(controller === highlightedController ? null : controller);
   };
 
+  const handlePlotClick = (controller) => {
+    if (!highlightedController) {
+      setHighlightedController(controller);
+    }
+    if (controller !== highlightedController) {
+      setHighlightedController(controller);
+    }
+    setPlotController(controller === plotController ? null : controller);
+  }
+
   return (
     <div className="container-fluid">
-      <Plot />
       <Header username={data.username} />
-      
       <div className="row">
-      
+        <div className={`sidebar-container ${highlightedController ? 'visible' : 'hidden'}`}>
+          {highlightedController && <Sidebar controller={highlightedController} />}
+        </div>
         <div className="col">
           {data.runner_controllers.map(controller => (
             <RunnerController
               key={controller.name}
               controller={controller}
               onOptionsClick={handleOptionsClick}
-              isHighlighted={highlightedController === controller}
+              onPlotClick={handlePlotClick}
+              isHighlighted={highlightedController === controller || plotController === controller}
             />
           ))}
         </div>
-        
-        <div className={`col-3 sidebar-container ${highlightedController ? 'visible' : 'hidden'}`}>
-          {highlightedController && <Sidebar controller={highlightedController} />}
+        <div className={`plotbar-container ${plotController ? 'visible' : 'hidden'}`}>
+          {plotController && <Plotbar controller={plotController} />}
         </div>
-        
       </div>
     </div>
   );

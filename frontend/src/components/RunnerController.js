@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Card, Button } from 'react-bootstrap';
 import RunnerCard from './RunnerCard';
-import './RunnerController.css';
-import { CgMoreVerticalO, CgChevronDownR, CgChevronRightR, CgPoll } from "react-icons/cg";
+import '../styles/RunnerController.css';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faChartLine, faList } from '@fortawesome/free-solid-svg-icons'
+import { faSquareCaretDown, faSquareCaretRight } from '@fortawesome/free-regular-svg-icons'
 
-const RunnerController = ({ controller, onOptionsClick, isHighlighted }) => {
-  const [expanded, setExpanded] = useState(false);
+
+const RunnerController = ({ controller, onOptionsClick, onPlotClick, isHighlighted }) => {
+  let [expanded, setExpanded] = useState(controller.runners.length);
 
   const handleExpand = () => {
     setExpanded(!expanded);
@@ -14,23 +17,25 @@ const RunnerController = ({ controller, onOptionsClick, isHighlighted }) => {
   return (
     <Card className={`runner-controller ${expanded ? 'expanded' : ''} ${isHighlighted ? 'highlighted' : ''}`}>
       <Card.Header className="d-flex justify-content-between align-items-center">
-      <Button variant="link" className="options-button" onClick={() => onOptionsClick(controller)}>
-      <CgMoreVerticalO />
-          </Button>
-        <span>{controller.name}</span>
+        
+        <div className='a'>{controller.name}</div>
         <div>
-          <Button variant="link" className="expand-button" onClick={handleExpand}>
-            {expanded ? <CgChevronDownR /> : <CgChevronRightR />}<CgPoll />
+          <Button variant="link" className={`bttn ${controller.runners.length === 0 ? 'disabled' : ''}`} onClick={handleExpand}>
+            {expanded ? <FontAwesomeIcon icon={faSquareCaretDown} size="xl" /> : <FontAwesomeIcon icon={faSquareCaretRight} size="xl" />}
           </Button>
-          
+          <Button variant="link" className="bttn" onClick={() => onPlotClick(controller)}>
+          <FontAwesomeIcon icon={faChartLine} size="xl" />
+          </Button>
+          <Button variant="link" className="bttn" onClick={() => onOptionsClick(controller)}>
+          <FontAwesomeIcon icon={faList} size="xl" />
+          </Button>
         </div>
       </Card.Header>
-      <div className={`runner-cards-container ${expanded ? 'visible' : 'hidden'}`}>
+      <div className={`runner-cards-container visible`}>
         {controller.runners.map(runner => (
           <RunnerCard key={runner.name} runner={runner} />
-          
         ))}
-        
+
       </div>
     </Card>
   );

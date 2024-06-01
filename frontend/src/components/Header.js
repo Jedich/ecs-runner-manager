@@ -1,17 +1,20 @@
 import React from 'react';
-import { Navbar, Nav } from 'react-bootstrap';
+import { Navbar, Nav, Container, Button } from 'react-bootstrap';
+import '../styles/Header.css';
 
 const Header = ({ username }) => {
   return (
-    <Navbar bg="light" expand="lg">
-      <Navbar.Brand href="#">My App</Navbar.Brand>
-      <Navbar.Toggle aria-controls="basic-navbar-nav" />
-      <Navbar.Collapse id="basic-navbar-nav">
-        <Nav className="ml-auto">
-          <Nav.Link href="#">{username}</Nav.Link>
-          <Nav.Link href="#">Logout</Nav.Link>
-        </Nav>
-      </Navbar.Collapse>
+    <Navbar variant="dark" bg="vvvvvv" className="bg-body-tertiary navbar">
+      <Container>
+        <Navbar.Brand href="#home">runner-manager</Navbar.Brand>
+        <Navbar.Toggle />
+        <Navbar.Collapse className="justify-content-end">
+          <Navbar.Text>
+            Signed in as: <a>Mark Otto</a>
+          </Navbar.Text>
+          <Button className='logout' variant="outline-info">Logout</Button>
+        </Navbar.Collapse>
+      </Container>
     </Navbar>
   );
 };

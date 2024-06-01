@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import "@fontsource/ubuntu/400.css";
 import './index.css';
-import App from './App';
+import App from './components/App';
 
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

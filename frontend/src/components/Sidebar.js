@@ -1,17 +1,23 @@
 import React from 'react';
-import { Card } from 'react-bootstrap';
-import './Sidebar.css';
+import { Nav, Button } from 'react-bootstrap';
+import '../styles/Sidebar.css';
 
 const Sidebar = ({ controller }) => {
   return (
-    <Card className="sidebar">
-      <Card.Body>
-        <Card.Title>Controller: {controller.name}</Card.Title>
-        <Card.Text>
-          Number of Runners: {controller.runners.length}
-        </Card.Text>
-      </Card.Body>
-    </Card>
+    <Nav className={`col-md-12 d-none d-md-block sidebar`}
+      activeKey="/home"
+      onSelect={selectedKey => alert(`selected ${selectedKey}`)}
+    >
+      <div className="sidebar-inside">
+      <h3>{controller.name}</h3>
+      <div>aaaaaaa</div>
+
+      <div className="sidebar-sticky"></div>
+      <Nav.Item>
+        <Nav.Link href="/home">Active</Nav.Link>
+      </Nav.Item>
+      </div>
+    </Nav>
   );
 };
 

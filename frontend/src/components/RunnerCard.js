@@ -1,19 +1,26 @@
 import React from 'react';
 import { Card } from 'react-bootstrap';
-import './RunnerCard.css';
+import '../styles/RunnerCard.css';
+
 
 const RunnerCard = ({ runner }) => {
   const getStatusColor = (status) => {
-    return status === 'busy' ? 'orange' : 'green';
+    let statuses = {
+      'idle': 'gray',
+      'busy': 'orange',
+      'finished': 'green',
+      'error': 'red'
+    }
+    return statuses[status];
   };
 
   return (
-    <Card className="m-2" style={{ width: '18rem' }}>
+    <Card className="m-2" style={{ width: '200px' }}>
       <Card.Body>
         <Card.Title>{runner.name}</Card.Title>
         <Card.Text>Private IPv4: {runner.private_ipv4}</Card.Text>
         <Card.Text>
-          Status: <span className="status-circle" style={{ backgroundColor: getStatusColor(runner.status) }}></span>
+          <span className="status-circle" style={{ backgroundColor: getStatusColor(runner.status) }}></span>
         </Card.Text>
       </Card.Body>
     </Card>

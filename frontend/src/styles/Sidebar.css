@@ -1,0 +1,26 @@
+.sidebar-container {
+    transition: transform 0.3s ease, opacity 0.3s ease, width 0.3s ease;
+    transform: translateX(-100%);
+    opacity: 0;
+    width: 0;
+    position: relative;
+    /* Change to fixed */
+    right: 0;
+    border-right: 1px solid #ddd;
+    min-height: calc(100vh - 60px);
+    /* Adjust this value as needed */
+    background: #f6f6f6;
+    padding: 0;
+}
+
+.sidebar-container.visible {
+    transform: translateX(0);
+    opacity: 1;
+    right: inherit;
+    width: 300px;
+    /* Adjust width as per your requirement */
+}
+
+.sidebar-inside {
+    padding: 20px;
+}
