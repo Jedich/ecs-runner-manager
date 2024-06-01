@@ -1,0 +1,35 @@
+.runner-controller {
+    margin-bottom: 10px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, border-color 0.3s ease;
+    max-height: 60px;
+    /* Adjust this value as needed */
+    border: 1px solid #ddd;
+}
+
+.runner-controller.expanded {
+    max-height: 500px;
+    /* Adjust this value as needed */
+}
+
+.runner-controller.highlighted {
+    -webkit-box-shadow: inset 0px 0px 0px 4px rgb(128, 225, 255);
+    -moz-box-shadow: inset 0px 0px 0px 4px rgb(128, 225, 255);
+    box-shadow: inset 0px 0px 0px 4px rgb(128, 225, 255);
+    transition: all 0.2s ease-out;
+}
+
+.runner-cards-container {
+    transition: opacity 0.3s ease, height 0.3s ease;
+    opacity: 0;
+    height: 0;
+}
+
+.runner-cards-container.visible {
+    opacity: 1;
+    height: auto;
+}
+
+.options-button {
+    margin-left: 10px;
+}

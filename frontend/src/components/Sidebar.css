@@ -1,0 +1,7 @@
+.sidebar {
+    width: 200px;
+    background-color: #f8f8f8;
+    border-right: 1px solid #ccc;
+    padding: 10px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
