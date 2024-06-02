@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import RunnerController from './RunnerController';
@@ -39,15 +39,20 @@ const user = {
 // };
 
 function App() {
-  let { data } = useWS();
-  data = data ? data : {controllers: []};
+  const { ctrlsData, sendMessage } = useWS();
+  const data = ctrlsData ? ctrlsData : { controllers: [] };
   const [highlightedController, setHighlightedController] = useState(null);
   const [plotController, setPlotController] = useState(null);
+
+  useEffect(() => {
+    sendMessage(JSON.stringify({ "event": "ctrls" }));
+  }, [sendMessage]);
 
   console.log(JSON.stringify(data));
   const handleOptionsClick = (controller) => {
     if (plotController && controller !== highlightedController) {
       setPlotController(null);
+      sendMessage(JSON.stringify({ "ctrl_id": "" }));
     }
     setHighlightedController(controller === highlightedController ? null : controller);
   };
@@ -60,27 +65,27 @@ function App() {
       setHighlightedController(controller);
     }
     setPlotController(controller === plotController ? null : controller);
+    sendMessage(JSON.stringify({ "ctrl_id": controller === plotController ? "" : controller.id, "event": "metrics" }));
   }
 
   return (
-
     <div className="container-fluid">
       <Header username={user.username} />
       <div className="row">
         <div className={`sidebar-container ${highlightedController ? 'visible' : 'hidden'}`}>
           {highlightedController && <Sidebar controller={highlightedController} />}
         </div>
-        <div className="col"> 
-          {data.length > 0 ? (
-            data.map(controller => (
-                <RunnerController
-                  key={controller.name}
-                  controller={controller}
-                  onOptionsClick={handleOptionsClick}
-                  onPlotClick={handlePlotClick}
-                  isHighlighted={highlightedController === controller || plotController === controller}
-                />
-              ))
+        <div className="col">
+          {data.controllers.length > 0 ? (
+            data.controllers.map(controller => (
+              <RunnerController
+                key={controller.name}
+                controller={controller}
+                onOptionsClick={handleOptionsClick}
+                onPlotClick={handlePlotClick}
+                isHighlighted={highlightedController === controller || plotController === controller}
+              />
+            ))
           ) : (
             <div>Loading...</div>
           )}

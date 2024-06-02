@@ -17,7 +17,7 @@ type IGithubUC interface {
 
 type IAWSUC interface {
 	GetTaskMetadata() (*metadata.TaskMetadataV4, error)
-	CreateRunner() (*model.Runner, error)
+	CreateRunner(runner *model.Runner) (*model.Runner, error)
 	GetPublicIP() string
 }
 

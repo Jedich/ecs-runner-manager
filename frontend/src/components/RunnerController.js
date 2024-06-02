@@ -15,7 +15,6 @@ const RunnerController = ({ controller, onOptionsClick, onPlotClick, isHighlight
   };
 
 
-
   return (
     <Card className={`runner-controller ${expanded ? 'expanded' : ''} ${isHighlighted ? 'highlighted' : ''}`}>
       <Card.Header className="d-flex justify-content-between align-items-center">

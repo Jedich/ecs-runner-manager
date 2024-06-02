@@ -16,7 +16,7 @@ type User struct {
 	CreatedAt time.Time          `bson:"created_at"`
 	UpdatedAt time.Time          `bson:"updated_at"`
 
-	RunnerController []entities.RunnerController `bson:"ctrls"`
+	RunnerController []*entities.RunnerController `bson:"ctrls"`
 }
 
 func NewUser(data *dto.CreateUserRequest) *User {
@@ -24,7 +24,7 @@ func NewUser(data *dto.CreateUserRequest) *User {
 		Username:         data.Username,
 		Email:            data.Email,
 		Password:         data.Password,
-		RunnerController: make([]entities.RunnerController, 0),
+		RunnerController: make([]*entities.RunnerController, 0),
 		CreatedAt:        time.Now(),
 	}
 }

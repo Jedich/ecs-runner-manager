@@ -9,6 +9,7 @@ import (
 
 type Runner struct {
 	ID          primitive.ObjectID    `bson:"_id,omitempty"`
+	Color       string                `bson:"color"`
 	Name        string                `bson:"name"`
 	PrivateIPv4 string                `bson:"private_ipv4"`
 	Status      constant.RunnerStatus `bson:"status"`

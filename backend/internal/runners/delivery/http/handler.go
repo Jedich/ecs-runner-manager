@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"runner-manager-backend/internal/infrastructure/logs"
 	"runner-manager-backend/internal/middleware"
 	"runner-manager-backend/internal/runners"
 	"runner-manager-backend/internal/runners/dto"
@@ -25,7 +26,17 @@ var upgrader = websocket.Upgrader{
 }
 
 // Mapping of JWT tokens to WebSocket connections
-var tokenToConn = make(map[string]*websocket.Conn)
+var tokenToConn = make(map[string]*UserWS)
+
+type UserWS struct {
+	Data       *RequestWSData
+	Connection *websocket.Conn
+}
+
+type RequestWSData struct {
+	CtrlID string `json:"ctrl_id"`
+	Event  string `json:"event"`
+}
 
 func NewHandlers(uc runners.Usecase) *handlers {
 	return &handlers{uc}
@@ -59,14 +70,85 @@ func (h *handlers) UpdateRunners(c *gin.Context) {
 		return
 	}
 
-	ctrls, err := h.uc.UpdateRunners(c, userData.Data.UserID, userData.Data.CtrlID, payload)
+	_, err = h.uc.UpdateRunners(c, userData.Data.UserID, userData.Data.CtrlID, payload)
 	if err != nil {
 		response.ErrorBuilder(err).Send(c)
 		return
 	}
-	sendToUser(userData.Data.UserID, ctrls)
+
+	userWS, ok := tokenToConn[userData.Data.UserID]
+	if !ok {
+		response.SuccessBuilder(nil).Send(c)
+		return
+	}
+
+	err = h.updateControllersWS(c, userData)
+	if err != nil {
+		response.ErrorBuilder(err).Send(c)
+		return
+	}
+
+	err = h.updateMetricsWS(userData, userWS.Data, c)
+	if err != nil {
+		response.ErrorBuilder(err).Send(c)
+		return
+	}
 
 	response.SuccessBuilder(nil).Send(c)
+}
+
+func (h *handlers) updateControllersWS(c *gin.Context, userData *middleware.PayloadToken) error {
+	ctrls, err := h.uc.GetAllCtrlsByUserID(c, userData.Data.UserID)
+	if err != nil {
+		return err
+	}
+
+	res := map[string]interface{}{
+		"event": "ctrls",
+		"data":  ctrls,
+	}
+
+	if len(ctrls) == 0 {
+		res["empty"] = true
+	}
+
+	jsonData, err := json.Marshal(&res)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Sending data to user:", string(jsonData))
+
+	sendToUser(userData.Data.UserID, jsonData)
+
+	return nil
+}
+
+func (h *handlers) updateMetricsWS(userData *middleware.PayloadToken, data *RequestWSData, c *gin.Context) error {
+	if data.CtrlID == "" {
+		logs.InfoF("CtrlID is missing, skipping")
+		return nil
+	}
+
+	metrics, err := h.uc.GetAllMetricsByCtrlID(c, userData.Data.UserID, data.CtrlID)
+	if err != nil {
+		return err
+	}
+
+	res := map[string]interface{}{
+		"event": "metrics",
+		"data":  metrics,
+	}
+
+	jsonData, err := json.Marshal(&res)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Sending data to user:", string(jsonData))
+
+	sendToUser(userData.Data.UserID, jsonData)
+
+	return nil
 }
 
 func (h *handlers) WsCtrl(c *gin.Context) {
@@ -79,46 +161,73 @@ func (h *handlers) WsCtrl(c *gin.Context) {
 
 	// Validate JWT token (implement your token validation logic here)
 	// For simplicity, let's assume a function validateToken(token string) bool
-	userData, err := middleware.NewTokenInformation(c)
+	tokenPayload, err := middleware.NewTokenInformation(c)
 	if err != nil {
 		response.ErrorBuilder(err).Send(c)
 		return
 	}
-	fmt.Println("User ID:", userData.Data.UserID)
+	fmt.Println("User ID:", tokenPayload.Data.UserID)
 
+	user := &UserWS{
+		Data:       &RequestWSData{},
+		Connection: conn,
+	}
 	// Associate WebSocket connection with JWT token
-	tokenToConn[userData.Data.UserID] = conn
-	defer delete(tokenToConn, userData.Data.UserID) // Remove the entry from the map when the connection closes
+	tokenToConn[tokenPayload.Data.UserID] = user
+	defer delete(tokenToConn, tokenPayload.Data.UserID) // Remove the entry from the map when the connection closes
 
 	// Handle WebSocket connection
 	for {
 		// Read message from WebSocket client
-		_, _, err := conn.ReadMessage()
+		_, message, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Println("Error reading message:", err)
+			logs.InfoF("Read error: ", err)
 			break
 		}
+
+		data := &RequestWSData{}
+
+		if err = json.Unmarshal(message, &data); err != nil {
+			logs.InfoF("Error unmarshalling message:", err)
+			return
+		}
+
+		if _, ok := tokenToConn[tokenPayload.Data.UserID]; ok {
+			tokenToConn[tokenPayload.Data.UserID].Data = data
+		}
+
+		if data.Event != "" {
+			switch data.Event {
+			case "metrics":
+				err = h.updateMetricsWS(tokenPayload, data, c)
+				if err != nil {
+					logs.InfoF("Error updating metrics:", err)
+					return
+				}
+			case "ctrls":
+				err = h.updateControllersWS(c, tokenPayload)
+				if err != nil {
+					logs.InfoF("Error updating controllers:", err)
+					return
+				}
+			}
+		}
+
+		logs.InfoF("Received message: %s", message)
 	}
 }
 
 // Send data to the user associated with the JWT token
-func sendToUser(userID string, data []*dto.RunnerControllerWSResponse) {
+func sendToUser(userID string, data []byte) {
 	// Get WebSocket connection associated with the JWT token
-	conn, ok := tokenToConn[userID]
+	user, ok := tokenToConn[userID]
 	if !ok {
 		fmt.Println("No WebSocket connection found for token:", userID)
 		return
 	}
 
-	jsonData, err := json.Marshal(&data)
-	if err != nil {
-		fmt.Println("Error marshalling data:", err)
-		return
-	}
-	fmt.Println("Sending data to user:", string(jsonData))
-
 	// Send the data to the user's WebSocket connection
-	if err = conn.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+	if err := user.Connection.WriteMessage(websocket.TextMessage, data); err != nil {
 		fmt.Println("Error sending data to user:", err)
 	}
 }

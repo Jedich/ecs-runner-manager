@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"runner-controller-ecs/internal/tools"
 	"strings"
 	"time"
 
@@ -220,7 +219,7 @@ func (c *AWSUC) GetTaskMetadata() (*metadata.TaskMetadataV4, error) {
 	return metav4, nil
 }
 
-func (c *AWSUC) CreateRunner() (*model.Runner, error) {
+func (c *AWSUC) CreateRunner(runner *model.Runner) (*model.Runner, error) {
 	ctx := context.TODO()
 
 	cfg, err := c.LoadConfig()
@@ -232,16 +231,14 @@ func (c *AWSUC) CreateRunner() (*model.Runner, error) {
 	ecsClient := ecs.NewFromConfig(*cfg)
 
 	// Run ECS task
-	task, name, err := c.runTask(ctx, ecsClient)
+	task, name, err := c.runTask(ctx, runner.Name, ecsClient)
 	if err != nil {
 		return nil, err
 	}
 
-	runner := &model.Runner{
-		Name:   name,
-		ARN:    *task.TaskArn,
-		Status: model.RunnerStatusReady,
-	}
+	runner.Name = name
+	runner.ARN = *task.TaskArn
+	runner.Status = model.RunnerStatusReady
 	for _, container := range task.Containers {
 		if *container.Name == ExporterContainerName {
 			for _, network := range container.NetworkInterfaces {
@@ -400,12 +397,10 @@ func (c *AWSUC) createTaskDefinition(ctx context.Context, client *ecs.Client, ro
 	return c.taskDefinitionArn, nil
 }
 
-func (c *AWSUC) runTask(ctx context.Context, client *ecs.Client) (*ecsTypes.Task, string, error) {
+func (c *AWSUC) runTask(ctx context.Context, name string, client *ecs.Client) (*ecsTypes.Task, string, error) {
 	if c.controllerMetadata == nil || c.taskDefinitionArn == "" {
 		return nil, "", errors.New("task metadata (cluster name) or task definition not set")
 	}
-
-	name := "linux-" + tools.RandString(6)
 
 	runTaskInput := &ecs.RunTaskInput{
 		Cluster:        aws.String(c.controllerMetadata.Cluster),

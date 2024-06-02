@@ -62,16 +62,71 @@ func (uc *usecase) UpdateRunners(ctx context.Context, userID, ctrlID string, pay
 		runnersWSResponse := make([]*dto.RunnerWSResponse, 0, len(ctrl.Runners))
 		for _, runner := range ctrl.Runners {
 			runnersWSResponse = append(runnersWSResponse, &dto.RunnerWSResponse{
+				Id:          runner.ID.Hex(),
 				Name:        runner.Name,
 				PrivateIPv4: runner.PrivateIPv4,
 				Status:      runner.Status,
 			})
 		}
 		rsp = append(rsp, &dto.RunnerControllerWSResponse{
+			Id:                ctrl.ID.Hex(),
 			Name:              "controller",
 			RunnersWSResponse: runnersWSResponse,
 		})
 	}
 
 	return rsp, nil
+}
+
+func (uc *usecase) GetAllCtrlsByUserID(ctx context.Context, userID string) ([]*dto.RunnerControllerWSResponse, error) {
+	ctrls, err := uc.repo.GetAllCtrlsByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	rsp := make([]*dto.RunnerControllerWSResponse, 0, len(ctrls))
+	for _, ctrl := range ctrls {
+		runnersWSResponse := make([]*dto.RunnerWSResponse, 0, len(ctrl.Runners))
+		for _, runner := range ctrl.Runners {
+			runnersWSResponse = append(runnersWSResponse, &dto.RunnerWSResponse{
+				Id:          runner.ID.Hex(),
+				Name:        runner.Name,
+				PrivateIPv4: runner.PrivateIPv4,
+				Status:      runner.Status,
+			})
+		}
+		rsp = append(rsp, &dto.RunnerControllerWSResponse{
+			Id:                ctrl.ID.Hex(),
+			Name:              "controller",
+			RunnersWSResponse: runnersWSResponse,
+		})
+	}
+	return rsp, nil
+}
+
+func (uc *usecase) GetAllMetricsByCtrlID(ctx context.Context, userID, ctrlID string) (*dto.MetricsCtrlWSResponse, error) {
+	metrics, err := uc.repo.GetAllMetricsByCtrlID(ctx, userID, ctrlID)
+	if err != nil {
+		return nil, err
+	}
+
+	r := make([]*dto.MetricsRunnerWSResponse, 0, 1)
+	for runnerName, m := range metrics {
+		runnerMetrics := make([]*dto.MetricsWSResponse, 0, len(m))
+		for _, metric := range m {
+			runnerMetrics = append(runnerMetrics, &dto.MetricsWSResponse{
+				Timestamp: metric.Timestamp.Format(time.RFC3339),
+				Metadata:  metric.Metadata,
+			})
+		}
+		r = append(r, &dto.MetricsRunnerWSResponse{
+			Name:          runnerName,
+			RunnerMetrics: runnerMetrics,
+		})
+	}
+	res := &dto.MetricsCtrlWSResponse{
+		RunnerMetrics: r,
+	}
+
+	return res, nil
 }

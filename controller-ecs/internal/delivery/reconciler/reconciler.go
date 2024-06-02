@@ -10,12 +10,14 @@ import (
 	"runner-controller-ecs/internal/delivery"
 	"runner-controller-ecs/internal/domain/model"
 	"runner-controller-ecs/internal/infrastructure/logs"
+	"runner-controller-ecs/internal/tools"
 	"runner-controller-ecs/internal/usecase"
 	"runner-controller-ecs/internal/usecase/broker"
 	"runner-controller-ecs/internal/usecase/credentials"
 	gh "runner-controller-ecs/internal/usecase/github"
 	"runner-controller-ecs/internal/usecase/prometheus"
 	"syscall"
+	"time"
 )
 
 type Reconciler struct {
@@ -126,13 +128,29 @@ func (c *Reconciler) Reconcile(brokerChannel chan model.WorkflowJobWebhook) erro
 		case "queued":
 			for _, label := range data.Job.Labels {
 				if label == "self-hosted" {
-					runner, err := c.awsUC.CreateRunner()
-					if err != nil {
-						return err
+					newRunner := &model.Runner{
+						Name:        "linux-" + tools.RandString(6),
+						Status:      model.RunnerStatusCreating,
+						PrivateIPv4: "1.1.1.1",
+						Metrics:     map[string]float64{},
 					}
+					c.runners[newRunner.Name] = newRunner
+					err := c.SendRunners()
+					if err != nil {
+						logs.ErrorF("Error sending initial runner: %w", err)
+					}
+					go func() {
+						runner, err := c.awsUC.CreateRunner(newRunner)
+						if err != nil {
+							logs.Error(err)
+						}
+						err = c.SendRunners()
+						if err != nil {
+							logs.ErrorF("Error sending idle runner: %w", err)
+						}
+						logs.InfoF("%v", runner)
 
-					c.runners[runner.Name] = runner
-					logs.InfoF("%v", runner)
+					}()
 				}
 			}
 		default:
@@ -143,20 +161,36 @@ func (c *Reconciler) Reconcile(brokerChannel chan model.WorkflowJobWebhook) erro
 			}
 			fallthrough
 		case "in_progress":
+			if _, ok := c.runners[data.Job.RunnerName]; !ok {
+				return nil
+			}
 			c.runners[data.Job.RunnerName].Status = model.RunnerStatusBusy
+			c.runners[data.Job.RunnerName].UpdatedAt = time.Now()
 		case "completed":
+			if _, ok := c.runners[data.Job.RunnerName]; !ok {
+				return nil
+			}
 			c.runners[data.Job.RunnerName].Status = model.RunnerStatusFinished
+			c.runners[data.Job.RunnerName].UpdatedAt = time.Now()
 		case "failed":
+			if _, ok := c.runners[data.Job.RunnerName]; !ok {
+				return nil
+			}
 			c.runners[data.Job.RunnerName].Status = model.RunnerStatusFailed
+			c.runners[data.Job.RunnerName].UpdatedAt = time.Now()
 		}
 
-		return nil
+		err := c.SendRunners()
+		if err != nil {
+			return err
+		}
 	default:
 		err := c.reconcileDefault()
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -167,8 +201,12 @@ func (c *Reconciler) reconcileDefault() error {
 			logs.Info("Runner is nil. Skipping...")
 			continue
 		}
-		if runner.Status == "" || runner.Status == model.RunnerStatusFinished || runner.Status == model.RunnerStatusFailed {
-			logs.InfoF("Runner %s is in status %s. Skipping...", runner.Name, runner.Status)
+		if runner.Status == model.RunnerStatusFinished || runner.Status == model.RunnerStatusFailed {
+			//logs.InfoF("Runner %s is in status %s. Skipping...", runner.Name, runner.Status)
+			if runner.UpdatedAt != (time.Time{}) && runner.UpdatedAt.Add(time.Minute*2).Before(time.Now()) {
+				delete(c.runners, name)
+				logs.InfoF("Runner %s terminated", runner.Name)
+			}
 			continue
 		}
 
@@ -218,6 +256,15 @@ func (c *Reconciler) reconcileDefault() error {
 		c.runners[k].Metrics = v
 	}
 
+	err = c.SendRunners()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Reconciler) SendRunners() error {
 	creds, err := c.credentialsUC.GetCredentials()
 	if err != nil {
 		return err
@@ -228,11 +275,15 @@ func (c *Reconciler) reconcileDefault() error {
 		Runners: make([]*model.RequestRunner, 0, len(c.runners)),
 	}
 	for _, runner := range c.runners {
+		m := make([]model.Metrics, 0, 1)
+		if len(runner.Metrics) > 0 {
+			m = append(m, runner.Metrics)
+		}
 		rq.Runners = append(rq.Runners, &model.RequestRunner{
 			Name:        runner.Name,
 			PrivateIPv4: runner.PrivateIPv4,
 			Status:      runner.Status,
-			Metrics:     []model.Metrics{runner.Metrics},
+			Metrics:     m,
 		})
 	}
 
@@ -242,7 +293,7 @@ func (c *Reconciler) reconcileDefault() error {
 		return nil
 	}
 
-	logs.InfoF(string(m))
+	logs.InfoF("Runners to be sent: %s", string(m))
 
 	jsonData, err := json.Marshal(rq)
 	if err != nil {
@@ -287,5 +338,6 @@ func (c *Reconciler) reconcileDefault() error {
 	}
 
 	logs.Info(string(body))
+
 	return nil
 }

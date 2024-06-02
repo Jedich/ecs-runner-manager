@@ -6,7 +6,7 @@ type ControllerRequest struct {
 
 type RequestRunner struct {
 	Name        string       `json:"name"`
-	PrivateIPv4 string       `json:"private_ip"`
+	PrivateIPv4 string       `json:"private_ipv4"`
 	Status      RunnerStatus `json:"status"`
 	Metrics     []Metrics    `json:"metrics"`
 }
