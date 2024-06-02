@@ -11,5 +11,4 @@ func (h *handlers) UserRoutes(router *gin.RouterGroup, cfg config.Config) {
 	router.POST("/login", h.Login)
 	router.POST("/api-login", h.LoginViaApiKey)
 	router.GET("/api-key", middleware.JWTMiddleware(cfg), h.GenerateApiKey)
-
 }

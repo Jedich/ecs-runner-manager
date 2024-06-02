@@ -23,6 +23,18 @@ type UpdateRunnerRequest struct {
 	Metrics     []map[string]interface{} `json:"metrics"`
 }
 
+type RunnerControllerWSResponse struct {
+	Name              string              `json:"name"`
+	RunnersWSResponse []*RunnerWSResponse `json:"runners"`
+}
+
+type RunnerWSResponse struct {
+	Name        string                   `json:"name"`
+	PrivateIPv4 string                   `json:"private_ipv4"`
+	Status      constant.RunnerStatus    `json:"status"`
+	Metrics     []map[string]interface{} `json:"metrics"`
+}
+
 func (cup *UpdateRunnersRequest) Validate() error {
 	for _, runner := range cup.Runners {
 		err := validation.ValidateStruct(&runner,

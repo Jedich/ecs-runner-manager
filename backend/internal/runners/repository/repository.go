@@ -6,6 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	ctrlEntities "runner-manager-backend/internal/ctrls/entities"
 	"runner-manager-backend/internal/runners"
 	"runner-manager-backend/internal/runners/entities"
 	userEntities "runner-manager-backend/internal/users/entities"
@@ -25,25 +26,26 @@ func NewRepository(usersColl *mongo.Collection, metricsColl *mongo.Collection) r
 	}
 }
 
-func (r *repository) UpdateRunners(ctx context.Context, userID string, ctrlID string, runners []*entities.Runner) (map[string]*entities.Runner, error) {
+func (r *repository) UpdateRunners(ctx context.Context, userID string, ctrlID string, runners []*entities.Runner) ([]ctrlEntities.RunnerController, map[string]*entities.Runner, error) {
 	userObjectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return nil, response.ErrUserNotFound
+		return nil, nil, response.ErrUserNotFound
 	}
 
 	ctrlObjectID, err := primitive.ObjectIDFromHex(ctrlID)
 	if err != nil {
-		return nil, response.ErrUserNotFound
+		return nil, nil, response.ErrUserNotFound
 	}
 
 	var user userEntities.User
 	err = r.usersColl.FindOne(ctx, bson.M{"_id": userObjectID}).Decode(&user)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var ctrlFound bool
 	var runnerMap map[string]*entities.Runner
+	var ctrls []ctrlEntities.RunnerController
 	for i, ctrl := range user.RunnerController {
 		if ctrl.ID == ctrlObjectID {
 			ctrlFound = true
@@ -67,22 +69,23 @@ func (r *repository) UpdateRunners(ctx context.Context, userID string, ctrlID st
 			}
 
 			user.RunnerController[i].Runners = updatedRunners
+			ctrls = user.RunnerController
 			runners = updatedRunners
 			break
 		}
 	}
 
 	if !ctrlFound {
-		return nil, errors.New("controller not found")
+		return ctrls, nil, errors.New("controller not found")
 	}
 
 	// Update the user document with the modified controllers
 	_, err = r.usersColl.ReplaceOne(ctx, bson.M{"_id": userObjectID}, user)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return runnerMap, nil
+	return ctrls, runnerMap, nil
 }
 
 func (r *repository) SaveMetrics(ctx context.Context, metrics []*entities.Metrics) error {

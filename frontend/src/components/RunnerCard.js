@@ -6,10 +6,10 @@ import '../styles/RunnerCard.css';
 const RunnerCard = ({ runner }) => {
   const getStatusColor = (status) => {
     let statuses = {
-      'idle': 'gray',
+      'ready': 'royalblue',
       'busy': 'orange',
       'finished': 'green',
-      'error': 'red'
+      'failed': 'red'
     }
     return statuses[status];
   };

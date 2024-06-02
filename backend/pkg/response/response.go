@@ -2,6 +2,7 @@ package response
 
 import (
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -64,6 +65,7 @@ func ErrorBuilder(err error) FailedResponse {
 
 // Send sends the FailedResponse as a JSON response using the provided Gin context.
 func (x FailedResponse) Send(ctx *gin.Context) {
+	fmt.Println(x)
 	ctx.JSON(x.Code, x)
 }
 

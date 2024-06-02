@@ -26,13 +26,17 @@ func JWTMiddleware(cfg config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := c.GetHeader("Authorization")
 		if tokenString == "" {
+			tokenString = c.Query("token")
+		} else {
+			// Remove "Bearer " prefix from token string
+			tokenString = tokenString[len("Bearer "):]
+		}
+
+		if tokenString == "" {
 			response.ErrorBuilder(response.Unauthorized(errors.New("Missing JWT token"))).Send(c)
 			c.Abort()
 			return
 		}
-
-		// Remove "Bearer " prefix from token string
-		tokenString = tokenString[len("Bearer "):]
 
 		token, err := jwt.ParseWithClaims(tokenString, &PayloadToken{}, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

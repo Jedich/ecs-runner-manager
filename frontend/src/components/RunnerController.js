@@ -8,17 +8,19 @@ import { faSquareCaretDown, faSquareCaretRight } from '@fortawesome/free-regular
 
 
 const RunnerController = ({ controller, onOptionsClick, onPlotClick, isHighlighted }) => {
-  let [expanded, setExpanded] = useState(controller.runners.length);
+  let [expanded, setExpanded] = useState(null);
 
   const handleExpand = () => {
     setExpanded(!expanded);
   };
 
+
+
   return (
     <Card className={`runner-controller ${expanded ? 'expanded' : ''} ${isHighlighted ? 'highlighted' : ''}`}>
       <Card.Header className="d-flex justify-content-between align-items-center">
         
-        <div className='a'>{controller.name}</div>
+        <div className='a'>{controller['name']}</div>
         <div>
           <Button variant="link" className={`bttn ${controller.runners.length === 0 ? 'disabled' : ''}`} onClick={handleExpand}>
             {expanded ? <FontAwesomeIcon icon={faSquareCaretDown} size="xl" /> : <FontAwesomeIcon icon={faSquareCaretRight} size="xl" />}

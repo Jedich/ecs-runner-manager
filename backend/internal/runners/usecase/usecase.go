@@ -21,19 +21,19 @@ func NewUseCase(usersRepo users.Repository, repo runners.Repository, cfg config.
 	return &usecase{usersRepo, repo, cfg}
 }
 
-func (uc *usecase) UpdateRunners(ctx context.Context, userID, ctrlID string, payload *dto.UpdateRunnersRequest) (err error) {
+func (uc *usecase) UpdateRunners(ctx context.Context, userID, ctrlID string, payload *dto.UpdateRunnersRequest) ([]*dto.RunnerControllerWSResponse, error) {
 	r := make([]*entities.Runner, 0, len(payload.Runners))
 	for _, runner := range payload.Runners {
 		r = append(r, entities.NewRunner(&runner))
 	}
 
 	if len(payload.Runners) == 0 {
-		return nil
+		return []*dto.RunnerControllerWSResponse{}, nil
 	}
 
-	runnerMap, err := uc.repo.UpdateRunners(ctx, userID, ctrlID, r)
+	ctrls, runnerMap, err := uc.repo.UpdateRunners(ctx, userID, ctrlID, r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, runner := range payload.Runners {
@@ -53,9 +53,25 @@ func (uc *usecase) UpdateRunners(ctx context.Context, userID, ctrlID string, pay
 
 		err = uc.repo.SaveMetrics(ctx, metrics)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	rsp := make([]*dto.RunnerControllerWSResponse, 0, len(ctrls))
+	for _, ctrl := range ctrls {
+		runnersWSResponse := make([]*dto.RunnerWSResponse, 0, len(ctrl.Runners))
+		for _, runner := range ctrl.Runners {
+			runnersWSResponse = append(runnersWSResponse, &dto.RunnerWSResponse{
+				Name:        runner.Name,
+				PrivateIPv4: runner.PrivateIPv4,
+				Status:      runner.Status,
+			})
+		}
+		rsp = append(rsp, &dto.RunnerControllerWSResponse{
+			Name:              "controller",
+			RunnersWSResponse: runnersWSResponse,
+		})
+	}
+
+	return rsp, nil
 }

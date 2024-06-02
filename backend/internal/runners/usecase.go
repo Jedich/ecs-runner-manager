@@ -6,5 +6,5 @@ import (
 )
 
 type Usecase interface {
-	UpdateRunners(ctx context.Context, userID, ctrlID string, payload *dto.UpdateRunnersRequest) (err error)
+	UpdateRunners(ctx context.Context, userID, ctrlID string, payload *dto.UpdateRunnersRequest) ([]*dto.RunnerControllerWSResponse, error)
 }
