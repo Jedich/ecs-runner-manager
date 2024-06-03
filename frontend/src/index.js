@@ -6,12 +6,11 @@ import './index.css';
 import App from './components/App';
 import { WebSocketProvider, useWebSocket } from './components/Websocket';
 
-
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <WebSocketProvider>
-    <App />
+      <App />
     </WebSocketProvider>
   </React.StrictMode>
 );

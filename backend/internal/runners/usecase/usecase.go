@@ -70,7 +70,7 @@ func (uc *usecase) UpdateRunners(ctx context.Context, userID, ctrlID string, pay
 		}
 		rsp = append(rsp, &dto.RunnerControllerWSResponse{
 			Id:                ctrl.ID.Hex(),
-			Name:              "controller",
+			Name:              ctrl.Name,
 			RunnersWSResponse: runnersWSResponse,
 		})
 	}
@@ -97,7 +97,7 @@ func (uc *usecase) GetAllCtrlsByUserID(ctx context.Context, userID string) ([]*d
 		}
 		rsp = append(rsp, &dto.RunnerControllerWSResponse{
 			Id:                ctrl.ID.Hex(),
-			Name:              "controller",
+			Name:              ctrl.Name,
 			RunnersWSResponse: runnersWSResponse,
 		})
 	}

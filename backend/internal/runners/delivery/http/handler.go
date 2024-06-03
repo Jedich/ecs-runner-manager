@@ -117,7 +117,7 @@ func (h *handlers) updateControllersWS(c *gin.Context, userData *middleware.Payl
 		return err
 	}
 
-	fmt.Println("Sending data to user:", string(jsonData))
+	logs.Info("Sending data to user")
 
 	sendToUser(userData.Data.UserID, jsonData)
 
@@ -144,7 +144,7 @@ func (h *handlers) updateMetricsWS(userData *middleware.PayloadToken, data *Requ
 	if err != nil {
 		return err
 	}
-	fmt.Println("Sending data to user:", string(jsonData))
+	logs.Info("Sending data to user")
 
 	sendToUser(userData.Data.UserID, jsonData)
 

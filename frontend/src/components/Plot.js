@@ -60,11 +60,9 @@ const Plot = ({ name, datasets }) => {
     },
   };
 
-  console.log(data);
-
   return (
     <div>
-      <h2>{name}</h2>
+      <h3>{name}</h3>
       <div style={{ height: "300px", position: "relative", marginBottom: "1%", padding: "1%" }}>
         <Line data={data} options={options} />
       </div>

@@ -7,36 +7,11 @@ import Chart from 'chart.js/auto';
 import '../styles/App.css';
 import Plotbar from './Plotbar';
 import { useWS } from './Websocket';
+import AuthModal from './Auth';
 
 const user = {
   "username": "test",
-
 }
-
-// const data = {
-//   "username": "test",
-//   "runner_controllers": [
-//     {
-//       "name": "runner controller",
-//       "runners": [
-//         {
-//           "name": "runner1",
-//           "private_ipv4": "172.31.36.190",
-//           "status": "busy",
-//         },
-//         {
-//           "name": "runner2",
-//           "private_ipv4": "172.31.43.32",
-//           "status": "finished",
-//         }
-//       ]
-//     },
-//     {
-//       "name": "runner controller2",
-//       "runners": []
-//     }
-//   ]
-// };
 
 function App() {
   const { ctrlsData, sendMessage } = useWS();
@@ -48,7 +23,6 @@ function App() {
     sendMessage(JSON.stringify({ "event": "ctrls" }));
   }, [sendMessage]);
 
-  console.log(JSON.stringify(data));
   const handleOptionsClick = (controller) => {
     if (plotController && controller !== highlightedController) {
       setPlotController(null);
@@ -67,9 +41,32 @@ function App() {
     setPlotController(controller === plotController ? null : controller);
     sendMessage(JSON.stringify({ "ctrl_id": controller === plotController ? "" : controller.id, "event": "metrics" }));
   }
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      setIsLoggedIn(true);
+    } else {
+      setShowModal(true);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setIsLoggedIn(false);
+    setShowModal(true);
+  };
   return (
     <div className="container-fluid">
+      {isLoggedIn ?
+        <AuthModal
+          show={showModal}
+          setIsLoggedIn={setIsLoggedIn}
+          setShowModal={setShowModal}
+        />
+        : null}
       <Header username={user.username} />
       <div className="row">
         <div className={`sidebar-container ${highlightedController ? 'visible' : 'hidden'}`}>

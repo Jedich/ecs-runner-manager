@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const INTERVAL = 5 * time.Second
+const INTERVAL = 2 * time.Second
 
 type Reconciler interface {
 	Init() error

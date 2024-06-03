@@ -64,7 +64,8 @@ func (cup *UpdateRunnersRequest) Validate() error {
 				constant.RunnerStatusReady,
 				constant.RunnerStatusBusy,
 				constant.RunnerStatusFailed,
-				constant.RunnerStatusFinished),
+				constant.RunnerStatusFinished,
+				constant.RunnerStatusTerminated),
 			),
 		)
 		if err != nil {

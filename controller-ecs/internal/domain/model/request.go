@@ -1,6 +1,7 @@
 package model
 
 type ControllerRequest struct {
+	Name    string           `json:"name"`
 	Runners []*RequestRunner `json:"runners"`
 }
 

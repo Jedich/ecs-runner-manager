@@ -9,6 +9,7 @@ import (
 
 type RunnerController struct {
 	ID        primitive.ObjectID `bson:"_id,omitempty"`
+	Name      string             `bson:"name"`
 	CreatedAt time.Time          `bson:"created_at"`
 	UpdatedAt time.Time          `bson:"updated_at"`
 	Runners   []*entities.Runner `bson:"runners"`
@@ -16,7 +17,8 @@ type RunnerController struct {
 
 func NewRunnerController(data *dto.CreateRunnerControllerRequest) *RunnerController {
 	return &RunnerController{
-		CreatedAt: time.Now(),
+		Name:      data.Name,
 		Runners:   make([]*entities.Runner, 0),
+		CreatedAt: time.Now(),
 	}
 }

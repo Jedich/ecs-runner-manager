@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ type Reconciler struct {
 	awsUC         usecase.IAWSUC
 	credentialsUC usecase.ICredentialUC
 	promUC        usecase.IPrometheusUC
+	name          string
 
 	broker *broker.Broker[model.WorkflowJobWebhook]
 
@@ -39,14 +41,23 @@ func NewReconciler(awsUC usecase.IAWSUC, broker *broker.Broker[model.WorkflowJob
 	}
 }
 
+const (
+	TerminatedDeregTimeout = 2 * time.Minute
+	CompletedDeregTimeout  = 1 * time.Minute
+)
+
 func (c *Reconciler) SubscribeBroker() chan model.WorkflowJobWebhook {
 	return c.broker.Subscribe()
 }
 
 func (c *Reconciler) Init() error {
+	c.name = "controller-" + tools.RandString(6)
 	c.runners = make(map[string]*model.Runner)
 	c.credentialsUC = credentials.NewCredentialUC()
 	c.promUC = prometheus.NewPrometheusUC()
+
+	logs.InfoF("Controller name: %s", c.name)
+
 	creds, err := c.credentialsUC.GetCredentials()
 	if err != nil {
 		return err
@@ -54,6 +65,7 @@ func (c *Reconciler) Init() error {
 
 	// Define the POST data
 	var jsonStr = map[string]interface{}{
+		"name":    c.name,
 		"api_key": creds.ApiKey,
 	}
 
@@ -131,7 +143,7 @@ func (c *Reconciler) Reconcile(brokerChannel chan model.WorkflowJobWebhook) erro
 					newRunner := &model.Runner{
 						Name:        "linux-" + tools.RandString(6),
 						Status:      model.RunnerStatusCreating,
-						PrivateIPv4: "1.1.1.1",
+						PrivateIPv4: "0.0.0.0",
 						Metrics:     map[string]float64{},
 					}
 					c.runners[newRunner.Name] = newRunner
@@ -171,6 +183,7 @@ func (c *Reconciler) Reconcile(brokerChannel chan model.WorkflowJobWebhook) erro
 				return nil
 			}
 			c.runners[data.Job.RunnerName].Status = model.RunnerStatusFinished
+			c.runners[data.Job.RunnerName].Metrics = map[string]float64{}
 			c.runners[data.Job.RunnerName].UpdatedAt = time.Now()
 		case "failed":
 			if _, ok := c.runners[data.Job.RunnerName]; !ok {
@@ -180,7 +193,12 @@ func (c *Reconciler) Reconcile(brokerChannel chan model.WorkflowJobWebhook) erro
 			c.runners[data.Job.RunnerName].UpdatedAt = time.Now()
 		}
 
-		err := c.SendRunners()
+		err := c.FetchMetrics()
+		if err != nil {
+			return err
+		}
+
+		err = c.SendRunners()
 		if err != nil {
 			return err
 		}
@@ -195,6 +213,20 @@ func (c *Reconciler) Reconcile(brokerChannel chan model.WorkflowJobWebhook) erro
 }
 
 func (c *Reconciler) reconcileDefault() error {
+	err := c.FetchMetrics()
+	if err != nil {
+		return err
+	}
+
+	err = c.SendRunners()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Reconciler) FetchMetrics() error {
 	readers := make(map[string]io.Reader)
 	for name, runner := range c.runners {
 		if runner == nil {
@@ -203,28 +235,47 @@ func (c *Reconciler) reconcileDefault() error {
 		}
 		if runner.Status == model.RunnerStatusFinished || runner.Status == model.RunnerStatusFailed {
 			//logs.InfoF("Runner %s is in status %s. Skipping...", runner.Name, runner.Status)
-			if runner.UpdatedAt != (time.Time{}) && runner.UpdatedAt.Add(time.Minute*2).Before(time.Now()) {
-				delete(c.runners, name)
+			if runner.UpdatedAt != (time.Time{}) && runner.UpdatedAt.Add(CompletedDeregTimeout).Before(time.Now()) {
+				runner.Metrics = map[string]float64{}
+				runner.Status = model.RunnerStatusTerminated
 				logs.InfoF("Runner %s terminated", runner.Name)
+			}
+
+			continue
+		}
+		if runner.Status == model.RunnerStatusTerminated {
+			if runner.UpdatedAt != (time.Time{}) && runner.UpdatedAt.Add(TerminatedDeregTimeout).Before(time.Now()) {
+				delete(c.runners, name)
+				logs.InfoF("Runner %s deleted", runner.Name)
 			}
 			continue
 		}
+		cli := http.DefaultClient
+		ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+		defer cancel()
 
-		requestURL := fmt.Sprintf("http://%s:9779/metrics", runner.PrivateIPv4)
-		res, err := http.Get(requestURL)
+		logs.InfoF("Fetching metrics from runner %s with status %s", runner.PrivateIPv4, runner.Status)
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s:9779/metrics", runner.PrivateIPv4), nil)
+		if err != nil {
+			return err
+		}
+
+		res, err := cli.Do(req.WithContext(ctx))
 		if err != nil {
 			switch {
+			case errors.Is(err, context.DeadlineExceeded):
+				if _, ok := c.runners[name]; !ok {
+					return nil
+				}
+				c.runners[name].Status = model.RunnerStatusReady
+				logs.InfoF("Metrics request timeout %s", runner.Name)
+				continue
 			case errors.Is(err, syscall.ECONNREFUSED):
 				//logs.InfoF("Runner %s is not ready yet. Skipping...", runner.Name)
 				continue
 			case errors.Is(err, syscall.EHOSTUNREACH):
 				if _, ok := c.runners[name]; !ok {
-					//logs.InfoF("Runner %s not found. Skipping...", runner.Name)
-					test, err := json.MarshalIndent(c.runners, "", "  ")
-					if err != nil {
-						return err
-					}
-					logs.InfoF(string(test))
+					return nil
 				}
 				c.runners[name].Status = model.RunnerStatusFinished
 				logs.InfoF("Runner %s terminated", runner.Name)
@@ -234,7 +285,6 @@ func (c *Reconciler) reconcileDefault() error {
 				continue
 			}
 		}
-
 		readers[name] = res.Body
 	}
 
@@ -253,12 +303,11 @@ func (c *Reconciler) reconcileDefault() error {
 		if _, ok := c.runners[k]; !ok {
 			continue
 		}
+		if c.runners[k].Status == model.RunnerStatusFinished || c.runners[k].Status == model.RunnerStatusTerminated {
+			c.runners[k].Metrics = map[string]float64{}
+			continue
+		}
 		c.runners[k].Metrics = v
-	}
-
-	err = c.SendRunners()
-	if err != nil {
-		return err
 	}
 
 	return nil
@@ -272,12 +321,16 @@ func (c *Reconciler) SendRunners() error {
 	url := creds.BackendURL
 
 	rq := &model.ControllerRequest{
+		Name:    c.name,
 		Runners: make([]*model.RequestRunner, 0, len(c.runners)),
 	}
 	for _, runner := range c.runners {
 		m := make([]model.Metrics, 0, 1)
 		if len(runner.Metrics) > 0 {
 			m = append(m, runner.Metrics)
+		}
+		if runner.Status == model.RunnerStatusTerminated || runner.Status == model.RunnerStatusFinished || runner.Status == model.RunnerStatusFailed {
+			m = []model.Metrics{}
 		}
 		rq.Runners = append(rq.Runners, &model.RequestRunner{
 			Name:        runner.Name,
